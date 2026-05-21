@@ -17,7 +17,7 @@ This document describes the engineering standards this project is built to.
 
 ## Standards
 
-- **MSRV:** Rust 1.75
+- **MSRV:** Rust 1.85
 - **Edition:** 2024
 - **License:** Apache-2.0 OR MIT (dual)
 - **Cross-platform:** Linux, macOS, Windows

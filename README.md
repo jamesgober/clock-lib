@@ -9,7 +9,7 @@
     <a href="https://crates.io/crates/clock-lib" alt="Download"><img alt="Crates.io Downloads" src="https://img.shields.io/crates/d/clock-lib?color=%230099ff"></a>
     <a href="https://docs.rs/clock-lib"><img src="https://docs.rs/clock-lib/badge.svg" alt="Documentation"></a>
     <a href="https://github.com/jamesgober/clock-lib/actions"><img alt="GitHub CI" src="https://github.com/jamesgober/clock-lib/actions/workflows/ci.yml/badge.svg"></a>
-    <a href="https://github.com/rust-lang/rfcs/blob/master/text/2495-min-rust-version.md" title="MSRV"><img alt="MSRV" src="https://img.shields.io/badge/MSRV-1.75%2B-blue"></a>
+    <a href="https://github.com/rust-lang/rfcs/blob/master/text/2495-min-rust-version.md" title="MSRV"><img alt="MSRV" src="https://img.shields.io/badge/MSRV-1.85%2B-blue"></a>
 </p>
 
 <p align="center">
@@ -62,7 +62,7 @@
 
 ```toml
 [dependencies]
-clock-lib = "0.1"
+clock-lib = "0.2"
 ```
 
 <hr>
@@ -74,17 +74,34 @@ use clock_lib as clock;
 
 // Measure elapsed time (monotonic — safe)
 let start = clock::now();
-do_work();
-println!("took {:?}", clock::elapsed(start));
+// ... do work ...
+let took = clock::elapsed(start);
 
 // Get a timestamp (wall-clock)
 let unix_seconds = clock::unix();
 ```
 
+Reach for the typed surface when you need it &mdash; [`Monotonic`](https://docs.rs/clock-lib/latest/clock_lib/struct.Monotonic.html) for elapsed-time math, [`Wall`](https://docs.rs/clock-lib/latest/clock_lib/struct.Wall.html) for timestamps. The compiler refuses to mix the two, so you cannot accidentally measure an interval with a clock that can step backwards.
+
+<hr>
+
+## Documentation
+
+- [API reference](docs/API.md) &mdash; every public type, trait, and function with examples.
+- [Developer guidelines](docs/GUIDELINES.md) &mdash; the engineering bar this project is built to.
+- [Release notes](docs/release/) &mdash; what shipped, when, and why.
+
 <br>
 
 ## Contributing
-Contributions are welcome. See the [Contributing Guide](CONTRIBUTING.md) for details.
+
+Contributions are welcome under the project's dual license. Before opening a pull request, please make sure:
+
+1. `cargo fmt --all -- --check` passes.
+2. `cargo clippy --all-targets --all-features -- -D warnings` is clean.
+3. `cargo test --all-features` passes.
+4. New public items include documentation and at least one example.
+5. The [API reference](docs/API.md) and [CHANGELOG](CHANGELOG.md) are updated alongside code changes.
 
 <br>
 
