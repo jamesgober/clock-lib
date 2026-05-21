@@ -19,6 +19,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.0] - 2026-05-21
+
+The stable release. The public API is now committed for the 1.x line: no
+breaking changes without a major version bump.
+
+### Added
+
+- Release notes at `docs/release/v1.0.0.md` documenting the stable
+  surface, performance posture, engineering posture, and out-of-scope
+  boundaries.
+
+### Changed
+
+- All install snippets, version references, and the lib.rs crate
+  documentation updated to `1.0`.
+- `docs/PERFORMANCE.md` baseline label set to `1.0.0`; the
+  performance-critical paths have not changed since the 0.4.0
+  measurement run, so the recorded numbers carry forward.
+- README opening paragraph reflects `#![forbid(unsafe_code)]` and links
+  to the performance document directly.
+- Minor prose tightening across crate-level documentation.
+
+### Public API
+
+The 1.0 surface is the union of every prior 0.x addition:
+
+- Tier-1 free functions: `now`, `elapsed`, `wall`, `unix`, `unix_ms`,
+  `unix_ns`.
+- Types: `Monotonic`, `Wall`.
+- Trait: `Clock` (with blanket impls for `Arc<C>` and `&C`).
+- Implementations: `SystemClock`, `ManualClock`.
+- Constants: `VERSION`.
+
+---
+
 ## [0.5.0] - 2026-05-21
 
 ### Added
@@ -156,7 +191,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI for Linux/macOS/Windows on stable and MSRV.
 - Project documentation framework.
 
-[Unreleased]: https://github.com/jamesgober/clock-lib/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/jamesgober/clock-lib/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/jamesgober/clock-lib/compare/v0.5.0...v1.0.0
 [0.5.0]: https://github.com/jamesgober/clock-lib/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/jamesgober/clock-lib/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/jamesgober/clock-lib/compare/v0.2.1...v0.3.0

@@ -21,7 +21,7 @@ use crate::{Monotonic, Wall};
 
 /// A source of time.
 ///
-/// `Clock` exposes both kinds of reading [`clock-lib`](crate) draws apart:
+/// `Clock` exposes both kinds of reading this crate keeps separate:
 /// a monotonic reading via [`Clock::now`] and a wall-clock reading via
 /// [`Clock::wall`]. Implementations must be safe to share across threads.
 ///

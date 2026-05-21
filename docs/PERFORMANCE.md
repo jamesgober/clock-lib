@@ -15,7 +15,7 @@
 </div>
 <br>
 
-> **Status:** Numbers below are recorded on the **0.4.0** baseline. Re-run the suite locally to compare against this baseline on your hardware.
+> **Status:** Numbers below are the **1.0.0** baseline. The performance-critical paths have not changed since the 0.4.0 measurement run &mdash; the same numbers carry forward. Re-run the suite locally to compare on your hardware.
 
 `clock-lib` is a thin, well-inlined layer over `std::time`. The headline performance claim is that the wrapper is free &mdash; `Monotonic::now()` runs in the same time as `Instant::now()`, and `Wall::now()` in the same time as `SystemTime::now()`. This document records the measurements behind that claim and the methodology used to take them.
 
