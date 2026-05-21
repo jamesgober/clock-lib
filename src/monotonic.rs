@@ -40,7 +40,7 @@ use std::time::Instant;
 #[cfg(feature = "std")]
 #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Monotonic(Instant);
+pub struct Monotonic(pub(crate) Instant);
 
 #[cfg(feature = "std")]
 impl Monotonic {

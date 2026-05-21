@@ -35,9 +35,26 @@
 //!
 //! # Tier-2 API (the mockable clock)
 //!
-//! The real value is deterministic time in tests. A future release introduces a
-//! `Clock` trait with `SystemClock` (production) and `ManualClock` (test/sim) so
-//! that systems can advance time instantly without ever calling `sleep`.
+//! The real value is deterministic time in tests. The [`Clock`] trait has two
+//! implementations &mdash; [`SystemClock`] for production and [`ManualClock`]
+//! for tests &mdash; so timing-driven code can be exercised without ever
+//! calling `sleep`.
+//!
+//! ```
+//! use clock_lib::{Clock, ManualClock, Monotonic};
+//! use std::time::Duration;
+//!
+//! fn expired<C: Clock>(clock: &C, stamp: Monotonic, ttl: Duration) -> bool {
+//!     clock.now().duration_since(stamp) >= ttl
+//! }
+//!
+//! let clock = ManualClock::new();
+//! let stamp = clock.now();
+//! assert!(!expired(&clock, stamp, Duration::from_secs(60)));
+//!
+//! clock.advance(Duration::from_secs(60));
+//! assert!(expired(&clock, stamp, Duration::from_secs(60)));
+//! ```
 //!
 //! # License
 //!
@@ -65,9 +82,12 @@
 #![warn(clippy::pedantic)]
 #![allow(clippy::module_name_repetitions)]
 
+mod clock;
 mod monotonic;
 mod wall;
 
+#[cfg(feature = "std")]
+pub use clock::{Clock, ManualClock, SystemClock};
 #[cfg(feature = "std")]
 pub use monotonic::Monotonic;
 #[cfg(feature = "std")]
