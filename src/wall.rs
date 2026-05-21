@@ -38,7 +38,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 #[cfg(feature = "std")]
 #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Wall(SystemTime);
+pub struct Wall(pub(crate) SystemTime);
 
 #[cfg(feature = "std")]
 impl Wall {

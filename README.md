@@ -62,7 +62,7 @@
 
 ```toml
 [dependencies]
-clock-lib = "0.2"
+clock-lib = "0.3"
 ```
 
 <hr>
@@ -82,6 +82,26 @@ let unix_seconds = clock::unix();
 ```
 
 Reach for the typed surface when you need it &mdash; [`Monotonic`](https://docs.rs/clock-lib/latest/clock_lib/struct.Monotonic.html) for elapsed-time math, [`Wall`](https://docs.rs/clock-lib/latest/clock_lib/struct.Wall.html) for timestamps. The compiler refuses to mix the two, so you cannot accidentally measure an interval with a clock that can step backwards.
+
+### Deterministic Time in Tests
+
+```rust
+use clock_lib::{Clock, ManualClock, Monotonic};
+use std::time::Duration;
+
+fn expired<C: Clock>(clock: &C, stamp: Monotonic, ttl: Duration) -> bool {
+    clock.now().duration_since(stamp) >= ttl
+}
+
+let clock = ManualClock::new();
+let stamp = clock.now();
+assert!(!expired(&clock, stamp, Duration::from_secs(60)));
+
+clock.advance(Duration::from_secs(60));   // instant, no sleep
+assert!(expired(&clock, stamp, Duration::from_secs(60)));
+```
+
+Inject [`Clock`](https://docs.rs/clock-lib/latest/clock_lib/trait.Clock.html) into anything time-driven (rate limiters, TTL caches, timeouts) and your test suite drops every `thread::sleep` it had.
 
 <hr>
 

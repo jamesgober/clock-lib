@@ -19,6 +19,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.3.0] - 2026-05-21
+
+### Added
+
+- `Clock` trait (`Send + Sync`) with `now() -> Monotonic` and
+  `wall() -> Wall` methods. Lets time-driven code take an injected source
+  of time and become deterministically testable.
+- `SystemClock` &mdash; zero-sized, `Copy`, `const`-constructible
+  production implementation backed by the OS.
+- `ManualClock` &mdash; lock-free, atomic-offset test implementation. Tests
+  advance time forward in arbitrary increments without calling
+  `thread::sleep`. Methods: `new`, `advance`, `offset`.
+- Blanket `Clock` implementations for `Arc<C: Clock>` and `&C: Clock` so
+  shared and borrowed clocks work everywhere.
+- Integration tests covering deterministic-time test patterns
+  (`tests/clock.rs`).
+- Doctests on every public item in the new module.
+- API reference section for the `Clock` trait, `SystemClock`, and
+  `ManualClock` in `docs/API.md`.
+- Release notes at `docs/release/v0.3.0.md`.
+
+### Changed
+
+- `Monotonic.0` and `Wall.0` fields raised from private to `pub(crate)`
+  so the new `ManualClock` can construct synthetic readings. The fields
+  remain inaccessible outside the crate.
+
+---
+
 ## [0.2.1] - 2026-05-21
 
 ### Added
@@ -87,7 +116,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI for Linux/macOS/Windows on stable and MSRV.
 - Project documentation framework.
 
-[Unreleased]: https://github.com/jamesgober/clock-lib/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/jamesgober/clock-lib/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/jamesgober/clock-lib/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/jamesgober/clock-lib/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/jamesgober/clock-lib/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/jamesgober/clock-lib/releases/tag/v0.1.0

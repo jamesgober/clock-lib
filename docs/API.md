@@ -14,7 +14,7 @@
 </div>
 <br>
 
-> **Status:** This reference tracks the public surface of `clock-lib` **0.2.1**. Every example is verified against the current codebase.
+> **Status:** This reference tracks the public surface of `clock-lib` **0.3.0**. Every example is verified against the current codebase.
 
 `clock-lib` exposes two complementary readings &mdash; **monotonic** (for measuring elapsed time) and **wall-clock** (for timestamps) &mdash; behind a one-line Tier-1 API. The two are distinct types and cannot be mixed: the compiler rejects any attempt to subtract a wall-clock reading from a monotonic one, eliminating an entire class of subtle timing bugs.
 
@@ -41,6 +41,15 @@
     - [`Wall::unix_seconds`](#wallunix_seconds)
     - [`Wall::unix_millis`](#wallunix_millis)
     - [`Wall::unix_nanos`](#wallunix_nanos)
+- [Traits](#traits)
+  - [`Clock`](#clock)
+- [Clock Implementations](#clock-implementations)
+  - [`SystemClock`](#systemclock)
+    - [`SystemClock::new`](#systemclocknew)
+  - [`ManualClock`](#manualclock)
+    - [`ManualClock::new`](#manualclocknew)
+    - [`ManualClock::advance`](#manualclockadvance)
+    - [`ManualClock::offset`](#manualclockoffset)
 - [Constants](#constants)
   - [`VERSION`](#version)
 
@@ -52,7 +61,7 @@ Add to `Cargo.toml`:
 
 ```toml
 [dependencies]
-clock-lib = "0.2"
+clock-lib = "0.3"
 ```
 
 `clock-lib` has zero runtime dependencies, supports `no_std` builds via `default-features = false`, and contains no `unsafe` code.
@@ -466,6 +475,220 @@ use clock_lib::Wall;
 
 let nanos = Wall::now().unix_nanos();
 assert!(nanos > 0);
+```
+
+<br>
+
+## Traits
+
+### `Clock`
+
+```rust
+pub trait Clock: Send + Sync {
+    fn now(&self) -> Monotonic;
+    fn wall(&self) -> Wall;
+}
+```
+
+A source of time. `Clock` lets time-driven code depend on an injected reading source instead of calling the OS directly. Production code passes [`SystemClock`](#systemclock); tests pass [`ManualClock`](#manualclock) and advance time without sleeping.
+
+**Required methods:**
+
+| Method | Returns | Description |
+| --- | --- | --- |
+| `now(&self)` | [`Monotonic`](#monotonic) | Captures a monotonic reading at the time of the call. |
+| `wall(&self)` | [`Wall`](#wall-1) | Captures a wall-clock reading at the time of the call. |
+
+**Bounds.** `Clock: Send + Sync` so instances can be shared across threads &mdash; typically via [`Arc`](https://doc.rust-lang.org/std/sync/struct.Arc.html).
+
+**Blanket implementations.** `Clock` is implemented for `Arc<C>` and `&C` where `C: Clock`, so the same value can be shared and reused without re-implementing the trait.
+
+**Example &mdash; defining a time-driven primitive:**
+
+```rust
+use clock_lib::{Clock, Monotonic};
+use std::time::Duration;
+
+struct Deadline<C: Clock> {
+    clock: C,
+    started: Monotonic,
+    ttl: Duration,
+}
+
+impl<C: Clock> Deadline<C> {
+    fn new(clock: C, ttl: Duration) -> Self {
+        let started = clock.now();
+        Self { clock, started, ttl }
+    }
+
+    fn is_expired(&self) -> bool {
+        self.clock.now().duration_since(self.started) >= self.ttl
+    }
+}
+```
+
+**Example &mdash; production vs test:**
+
+```rust
+use clock_lib::{Clock, ManualClock, Monotonic, SystemClock};
+use std::time::Duration;
+
+fn measure_then_check<C: Clock>(clock: &C, target: Duration) -> bool {
+    let start = clock.now();
+    // ... work ...
+    clock.now().duration_since(start) >= target
+}
+
+// Production
+let sys = SystemClock::new();
+let _ok = measure_then_check(&sys, Duration::from_millis(1));
+
+// Test — fully deterministic
+let test = ManualClock::new();
+test.advance(Duration::from_secs(1));
+assert!(measure_then_check(&test, Duration::ZERO));
+```
+
+<br>
+
+## Clock Implementations
+
+### `SystemClock`
+
+```rust
+pub struct SystemClock;
+```
+
+A zero-sized, `Copy` clock backed by the operating system. `SystemClock::now()` forwards to [`Monotonic::now`](#monotonicnow); `SystemClock::wall()` forwards to [`Wall::now`](#wallnow). The constructor is `const`, so `SystemClock` can be embedded in `const` items.
+
+**Derived traits:** `Debug`, `Default`, `Copy`, `Clone`.
+
+<br>
+
+#### `SystemClock::new`
+
+```rust
+pub const fn new() -> SystemClock
+```
+
+Constructs a new system clock.
+
+**Example:**
+
+```rust
+use clock_lib::{Clock, SystemClock};
+
+const CLOCK: SystemClock = SystemClock::new();
+let t = CLOCK.now();
+# let _ = t;
+```
+
+<br>
+
+### `ManualClock`
+
+```rust
+pub struct ManualClock { /* opaque */ }
+```
+
+A clock under your control, for deterministic testing. `ManualClock` captures the OS monotonic and wall-clock anchors at construction, then advances **only** when you call [`advance`](#manualclockadvance). The clock never moves on its own, so timing-driven code can be exercised at exact, repeatable instants.
+
+`ManualClock` is `Send + Sync`. Share it across the test driver and the code under test by wrapping in an [`Arc`](https://doc.rust-lang.org/std/sync/struct.Arc.html); both ends observe the same readings.
+
+**Derived traits:** `Debug`, `Default`.
+
+**Example &mdash; sleep-free TTL test:**
+
+```rust
+use clock_lib::{Clock, ManualClock, Monotonic};
+use std::sync::Arc;
+use std::time::Duration;
+
+fn expired<C: Clock>(clock: &C, stamp: Monotonic, ttl: Duration) -> bool {
+    clock.now().duration_since(stamp) >= ttl
+}
+
+let clock = Arc::new(ManualClock::new());
+let stamp = clock.now();
+let ttl = Duration::from_secs(60);
+
+assert!(!expired(&*clock, stamp, ttl));
+clock.advance(Duration::from_secs(30));
+assert!(!expired(&*clock, stamp, ttl));
+clock.advance(Duration::from_secs(30));
+assert!(expired(&*clock, stamp, ttl));
+```
+
+<br>
+
+#### `ManualClock::new`
+
+```rust
+pub fn new() -> ManualClock
+```
+
+Constructs a new manual clock anchored at the current OS time. The offset starts at zero, so the first reading equals the anchor.
+
+**Example:**
+
+```rust
+use clock_lib::ManualClock;
+
+let clock = ManualClock::new();
+# let _ = clock;
+```
+
+<br>
+
+#### `ManualClock::advance`
+
+```rust
+pub fn advance(&self, by: Duration)
+```
+
+Advances the clock forward by `by`. Successive calls accumulate. If the cumulative offset would exceed [`u64::MAX`] nanoseconds (≈584 years), the offset saturates &mdash; well outside any plausible test scenario.
+
+**Parameters:**
+
+| Name | Type | Description |
+| --- | --- | --- |
+| `by` | [`Duration`](https://doc.rust-lang.org/core/time/struct.Duration.html) | The amount of time to advance the clock by. |
+
+**Note.** `advance` takes `&self` so it can be called from any reference, including through an [`Arc`](https://doc.rust-lang.org/std/sync/struct.Arc.html). Internally, the offset is an [`AtomicU64`](https://doc.rust-lang.org/core/sync/atomic/struct.AtomicU64.html) that accumulates lock-free.
+
+**Example:**
+
+```rust
+use clock_lib::{Clock, ManualClock};
+use std::time::Duration;
+
+let clock = ManualClock::new();
+let before = clock.now();
+clock.advance(Duration::from_secs(5));
+let after = clock.now();
+assert_eq!(after.duration_since(before), Duration::from_secs(5));
+```
+
+<br>
+
+#### `ManualClock::offset`
+
+```rust
+pub fn offset(&self) -> Duration
+```
+
+Returns the cumulative offset that has been added to this clock since it was constructed.
+
+**Example:**
+
+```rust
+use clock_lib::ManualClock;
+use std::time::Duration;
+
+let clock = ManualClock::new();
+clock.advance(Duration::from_secs(1));
+clock.advance(Duration::from_secs(2));
+assert_eq!(clock.offset(), Duration::from_secs(3));
 ```
 
 <br>
