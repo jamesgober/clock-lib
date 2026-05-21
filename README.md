@@ -50,8 +50,8 @@
 
 ### Lean & Correct
 - **Zero runtime dependencies** &mdash; wraps `std::time`
-- **No `unsafe` code**
-- **`no_std` support** &mdash; via the default-off path
+- **`#![forbid(unsafe_code)]`** &mdash; enforced by the compiler
+- **`no_std`-compatible** &mdash; the crate builds against bare-metal targets with `default-features = false`
 - **Cross-platform** &mdash; Linux, macOS, Windows
 
 > This crate deliberately does **not** do calendar math, date formatting, or timezones. For that, use [`chrono`](https://crates.io/crates/chrono) or [`time`](https://crates.io/crates/time). clock-lib is the lean primitive layer beneath them.
@@ -62,8 +62,17 @@
 
 ```toml
 [dependencies]
-clock-lib = "0.4"
+clock-lib = "0.5"
 ```
+
+For `no_std` builds, opt out of the default `std` feature:
+
+```toml
+[dependencies]
+clock-lib = { version = "0.5", default-features = false }
+```
+
+In `no_std` mode, only the `VERSION` constant is exposed &mdash; the reading APIs all require an OS clock and are gated behind the `std` feature. This is the honest cost of a portable clock library: the readings themselves are platform-specific.
 
 <hr>
 

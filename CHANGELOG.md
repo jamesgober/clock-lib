@@ -19,6 +19,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.5.0] - 2026-05-21
+
+### Added
+
+- CI job that builds the crate against `thumbv7em-none-eabihf` (and the
+  host with `--no-default-features`) to keep the `no_std` path honest.
+- Feature-flag documentation in `src/lib.rs`, `README.md`, and
+  `docs/API.md` describing the `std`/`no_std` split and what's available
+  in each mode.
+- Cross-doc navigation: every doc page now links to `README`, `API.md`,
+  `PERFORMANCE.md`, and `GUIDELINES.md`.
+
+### Changed
+
+- `docs/PERFORMANCE.md` reproduction commands use a generic `main`
+  baseline name rather than a version-coupled one, and the
+  REPS-mandated 5%-regression gate is called out explicitly.
+- README "Lean & Correct" section reflects `#![forbid(unsafe_code)]`
+  and the verified bare-metal `no_std` build.
+
+---
+
 ## [0.4.0] - 2026-05-21
 
 ### Added
@@ -134,7 +156,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI for Linux/macOS/Windows on stable and MSRV.
 - Project documentation framework.
 
-[Unreleased]: https://github.com/jamesgober/clock-lib/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/jamesgober/clock-lib/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/jamesgober/clock-lib/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/jamesgober/clock-lib/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/jamesgober/clock-lib/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/jamesgober/clock-lib/compare/v0.2.0...v0.2.1

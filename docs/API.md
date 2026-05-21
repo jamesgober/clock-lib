@@ -16,13 +16,14 @@
 </div>
 <br>
 
-> **Status:** This reference tracks the public surface of `clock-lib` **0.4.0**. Every example is verified against the current codebase.
+> **Status:** This reference tracks the public surface of `clock-lib` **0.5.0**. Every example is verified against the current codebase.
 
 `clock-lib` exposes two complementary readings &mdash; **monotonic** (for measuring elapsed time) and **wall-clock** (for timestamps) &mdash; behind a one-line Tier-1 API. The two are distinct types and cannot be mixed: the compiler rejects any attempt to subtract a wall-clock reading from a monotonic one, eliminating an entire class of subtle timing bugs.
 
 ## Table of Contents
 
 - [Installation](#installation)
+  - [Feature Flags](#feature-flags)
 - [Quick Start](#quick-start)
 - [Tier-1 Functions](#tier-1-functions)
   - [`now`](#now)
@@ -63,10 +64,25 @@ Add to `Cargo.toml`:
 
 ```toml
 [dependencies]
-clock-lib = "0.4"
+clock-lib = "0.5"
 ```
 
-`clock-lib` has zero runtime dependencies, supports `no_std` builds via `default-features = false`, and contains no `unsafe` code.
+`clock-lib` has zero runtime dependencies and contains no `unsafe` code (`#![forbid(unsafe_code)]`).
+
+### Feature Flags
+
+| Feature | Default | What it enables |
+| --- | --- | --- |
+| `std` | yes | The reading APIs &mdash; `Monotonic`, `Wall`, `Clock`, `SystemClock`, `ManualClock`, and all Tier-1 free functions |
+
+To build for a `no_std` target, opt out of the default:
+
+```toml
+[dependencies]
+clock-lib = { version = "0.5", default-features = false }
+```
+
+With `std` disabled, only the [`VERSION`](#version) constant is exposed. Every reading function requires an operating system clock and lives behind the `std` feature gate.
 
 <br>
 

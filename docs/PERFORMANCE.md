@@ -144,11 +144,13 @@ To compare against this baseline:
 
 ```bash
 # First run — establishes a named baseline.
-cargo bench --bench clock_bench -- --save-baseline 0.4.0
+cargo bench --bench clock_bench -- --save-baseline main
 
 # Later — compares the current code against the saved baseline.
-cargo bench --bench clock_bench -- --baseline 0.4.0
+cargo bench --bench clock_bench -- --baseline main
 ```
+
+A regression exceeding 5% on any tracked metric is treated as a build failure per the [REPS performance gate](../REPS.md#cicd--pre-merge-checklist).
 
 <br>
 
