@@ -19,6 +19,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.2.1] - 2026-05-21
+
+### Added
+
+- `#![forbid(unsafe_code)]` at the crate root, promoting the no-`unsafe`
+  promise to a compiler-enforced guarantee that downstream code cannot
+  override.
+- Lint denies for `warnings` and `clippy::unreachable`, completing the
+  REPS-required lint stack.
+- Pinned Rust toolchain via `rust-toolchain.toml`.
+- Committed `Cargo.lock` for reproducible builds across environments.
+- `deny.toml` with license allowlist, yanked-crate ban, and wildcard ban.
+- `cargo audit` and `cargo deny check` jobs in CI.
+- `.gitattributes` to normalize line endings across platforms (fixes a
+  CRLF/LF mismatch that broke `cargo fmt --check` on Windows runners).
+
+### Changed
+
+- CI: `actions/checkout` bumped to `v5` (Node.js 20 deprecation).
+- CI: Security audit job now uses pre-built `cargo-audit` via
+  `taiki-e/install-action`, sidestepping both the Node.js 20 deprecation
+  and the audit-tool MSRV mismatch with the pinned 1.85 toolchain.
+- Integration tests renamed to the REPS
+  `test_<subject>_<condition>_<expected>` convention.
+
+### Security
+
+- `cargo audit` and `cargo deny` now run on every push, blocking merges on
+  any RustSec advisory or license/source policy violation.
+
+---
+
 ## [0.2.0] - 2026-05-21
 
 ### Added
@@ -55,6 +87,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI for Linux/macOS/Windows on stable and MSRV.
 - Project documentation framework.
 
-[Unreleased]: https://github.com/jamesgober/clock-lib/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/jamesgober/clock-lib/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/jamesgober/clock-lib/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/jamesgober/clock-lib/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/jamesgober/clock-lib/releases/tag/v0.1.0
