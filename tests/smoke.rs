@@ -4,12 +4,12 @@ use std::thread::sleep;
 use std::time::Duration;
 
 #[test]
-fn version_is_set() {
+fn test_version_const_is_non_empty() {
     assert!(!clock_lib::VERSION.is_empty());
 }
 
 #[test]
-fn now_advances_across_a_sleep() {
+fn test_now_after_sleep_advances_at_least_sleep_duration() {
     let start = clock_lib::now();
     sleep(Duration::from_millis(2));
     let took = clock_lib::elapsed(start);
@@ -17,20 +17,20 @@ fn now_advances_across_a_sleep() {
 }
 
 #[test]
-fn wall_returns_a_modern_timestamp() {
-    // 2026-05-21 is well past 2024-01-01 (1704067200).
+fn test_wall_unix_seconds_returns_modern_timestamp() {
+    // Any modern system clock is after 2024-01-01 UTC (1704067200).
     let seconds = clock_lib::wall().unix_seconds();
     assert!(seconds > 1_704_067_200);
 }
 
 #[test]
-fn unix_helpers_scale_consistently() {
+fn test_unix_helpers_scale_consistently_across_units() {
     let secs = clock_lib::unix();
     let ms = clock_lib::unix_ms();
     let ns = clock_lib::unix_ns();
 
     // ms is at least seconds * 1000; ns is at least ms * 1_000_000.
-    // Allow forward drift between calls but reject any going-backwards.
+    // Forward drift between calls is allowed; going backwards is not.
     assert!(ms >= u128::from(secs) * 1_000);
     assert!(ns >= ms * 1_000_000);
 }
