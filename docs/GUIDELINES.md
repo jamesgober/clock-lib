@@ -6,9 +6,11 @@
     <sup>
         <a href="../README.md" title="Project Home"><b>HOME</b></a>
         <span>&nbsp;&mdash;&nbsp;</span>
-        <span>GUIDELINES</span>
-        <span>&nbsp;&mdash;&nbsp;</span>
         <a href="./API.md" title="API Reference"><b>API</b></a>
+        <span>&nbsp;&mdash;&nbsp;</span>
+        <a href="./PERFORMANCE.md" title="Performance"><b>PERFORMANCE</b></a>
+        <span>&nbsp;&mdash;&nbsp;</span>
+        <span>GUIDELINES</span>
     </sup>
 </div>
 <br>
