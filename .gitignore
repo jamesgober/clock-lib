@@ -41,5 +41,4 @@ Homestead.json
 *.sublime-project
 ._*
 
-# Cargo lock (libraries don't commit lock)
-Cargo.lock
+# Cargo.lock is committed per REPS Reproducibility — see deny.toml/CI for policy.

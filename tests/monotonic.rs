@@ -6,20 +6,21 @@ use std::time::Duration;
 use clock_lib::Monotonic;
 
 #[test]
-fn now_is_monotonic_non_decreasing() {
+fn test_now_called_twice_is_non_decreasing() {
     let a = Monotonic::now();
     let b = Monotonic::now();
     assert!(b >= a);
 }
 
 #[test]
-fn elapsed_is_non_negative() {
+fn test_elapsed_after_construction_returns_non_negative_duration() {
     let t = Monotonic::now();
+    // The call returns successfully; non-negative is guaranteed by the type.
     let _ = t.elapsed();
 }
 
 #[test]
-fn duration_since_matches_real_sleep() {
+fn test_duration_since_after_sleep_meets_sleep_floor() {
     let earlier = Monotonic::now();
     sleep(Duration::from_millis(5));
     let later = Monotonic::now();
@@ -28,18 +29,16 @@ fn duration_since_matches_real_sleep() {
 }
 
 #[test]
-fn checked_duration_since_returns_none_when_earlier_is_later() {
+fn test_checked_duration_since_with_later_arg_returns_none() {
     let first = Monotonic::now();
     sleep(Duration::from_millis(1));
     let second = Monotonic::now();
-    // Reversed argument order: first < second, so second.checked_duration_since(first) = Some.
     assert!(second.checked_duration_since(first).is_some());
-    // Whereas first.checked_duration_since(second) = None.
     assert!(first.checked_duration_since(second).is_none());
 }
 
 #[test]
-fn saturating_duration_since_floors_at_zero() {
+fn test_saturating_duration_since_with_later_arg_returns_zero() {
     let first = Monotonic::now();
     sleep(Duration::from_millis(1));
     let second = Monotonic::now();
@@ -50,7 +49,7 @@ fn saturating_duration_since_floors_at_zero() {
 }
 
 #[test]
-fn copy_and_eq_work_as_expected() {
+fn test_copy_of_monotonic_equals_original() {
     let a = Monotonic::now();
     let b = a;
     assert_eq!(a, b);
