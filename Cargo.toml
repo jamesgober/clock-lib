@@ -1,0 +1,39 @@
+[package]
+name = "clock-lib"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.75"
+readme = "README.md"
+license = "Apache-2.0 OR MIT"
+authors = ["James Gober <me@jamesgober.com>"]
+description = "Monotonic and wall-clock time readings for Rust, with a mockable clock for deterministic testing. Simple Tier-1 API, zero dependencies, no unsafe."
+keywords = ["time", "clock", "monotonic", "timekeeping", "mock"]
+categories = ["date-and-time", "development-tools::testing", "no-std"]
+documentation = "https://docs.rs/clock-lib"
+repository = "https://github.com/jamesgober/clock-lib"
+homepage = "https://github.com/jamesgober/clock-lib"
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[lib]
+name = "clock_lib"
+path = "src/lib.rs"
+
+[features]
+default = ["std"]
+std = []
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "clock_bench"
+harness = false
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+strip = "symbols"
