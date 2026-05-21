@@ -27,7 +27,7 @@
 </p>
 
 <p>
-    Built for performance and correctness: a one-line Tier-1 API for the common case, zero runtime dependencies, no <code>unsafe</code> code, and full <code>no_std</code> support. <strong>clock-lib</strong> wraps <code>std::time</code> primitives with a thin, well-inlined layer that costs nothing and forces the right usage.
+    Built for performance and correctness: a one-line Tier-1 API for the common case, zero runtime dependencies, <code>#![forbid(unsafe_code)]</code> at the crate root, and <code>no_std</code>-compatible builds. <strong>clock-lib</strong> wraps <code>std::time</code> with a thin, well-inlined layer that <a href="docs/PERFORMANCE.md">benchmarks at zero overhead</a> &mdash; you pay the syscall cost and nothing more.
 </p>
 
 ## Features
@@ -62,14 +62,14 @@
 
 ```toml
 [dependencies]
-clock-lib = "0.5"
+clock-lib = "1.0"
 ```
 
 For `no_std` builds, opt out of the default `std` feature:
 
 ```toml
 [dependencies]
-clock-lib = { version = "0.5", default-features = false }
+clock-lib = { version = "1.0", default-features = false }
 ```
 
 In `no_std` mode, only the `VERSION` constant is exposed &mdash; the reading APIs all require an OS clock and are gated behind the `std` feature. This is the honest cost of a portable clock library: the readings themselves are platform-specific.

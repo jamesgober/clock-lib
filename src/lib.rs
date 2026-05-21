@@ -68,7 +68,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! clock-lib = { version = "0.5", default-features = false }
+//! clock-lib = { version = "1.0", default-features = false }
 //! ```
 //!
 //! # License
