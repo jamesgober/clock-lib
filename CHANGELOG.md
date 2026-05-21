@@ -19,6 +19,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.4.0] - 2026-05-21
+
+### Added
+
+- Real benchmark suite at `benches/clock_bench.rs` (criterion).
+  Seven groups covering monotonic reads, wall reads, unix conversions,
+  unix helpers, elapsed-time measurement, `ManualClock` operations, and
+  trait-object dispatch.
+- `docs/PERFORMANCE.md` documenting the methodology, baseline numbers,
+  and the verified zero-overhead claim against raw `std::time`.
+- Documentation link from `README.md` to the performance page.
+
+### Changed
+
+- Removed the placeholder bench function — the suite is now real.
+
+---
+
 ## [0.3.0] - 2026-05-21
 
 ### Added
@@ -116,7 +134,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI for Linux/macOS/Windows on stable and MSRV.
 - Project documentation framework.
 
-[Unreleased]: https://github.com/jamesgober/clock-lib/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/jamesgober/clock-lib/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/jamesgober/clock-lib/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/jamesgober/clock-lib/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/jamesgober/clock-lib/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/jamesgober/clock-lib/compare/v0.1.0...v0.2.0

@@ -14,7 +14,7 @@
 </div>
 <br>
 
-> **Status:** This reference tracks the public surface of `clock-lib` **0.3.0**. Every example is verified against the current codebase.
+> **Status:** This reference tracks the public surface of `clock-lib` **0.4.0**. Every example is verified against the current codebase.
 
 `clock-lib` exposes two complementary readings &mdash; **monotonic** (for measuring elapsed time) and **wall-clock** (for timestamps) &mdash; behind a one-line Tier-1 API. The two are distinct types and cannot be mixed: the compiler rejects any attempt to subtract a wall-clock reading from a monotonic one, eliminating an entire class of subtle timing bugs.
 
@@ -61,7 +61,7 @@ Add to `Cargo.toml`:
 
 ```toml
 [dependencies]
-clock-lib = "0.3"
+clock-lib = "0.4"
 ```
 
 `clock-lib` has zero runtime dependencies, supports `no_std` builds via `default-features = false`, and contains no `unsafe` code.

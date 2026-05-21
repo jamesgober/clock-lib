@@ -62,7 +62,7 @@
 
 ```toml
 [dependencies]
-clock-lib = "0.3"
+clock-lib = "0.4"
 ```
 
 <hr>
@@ -108,6 +108,7 @@ Inject [`Clock`](https://docs.rs/clock-lib/latest/clock_lib/trait.Clock.html) in
 ## Documentation
 
 - [API reference](docs/API.md) &mdash; every public type, trait, and function with examples.
+- [Performance](docs/PERFORMANCE.md) &mdash; benchmark methodology and the zero-overhead claim, verified.
 - [Developer guidelines](docs/GUIDELINES.md) &mdash; the engineering bar this project is built to.
 - [Release notes](docs/release/) &mdash; what shipped, when, and why.
 
