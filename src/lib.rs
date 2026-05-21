@@ -56,6 +56,21 @@
 //! assert!(expired(&clock, stamp, Duration::from_secs(60)));
 //! ```
 //!
+//! # Feature flags
+//!
+//! - **`std`** (default): enables every reading API &mdash; [`Monotonic`],
+//!   [`Wall`], [`Clock`], [`SystemClock`], [`ManualClock`], and the Tier-1
+//!   free functions.
+//!
+//! Disable default features to build for a `no_std` target. With `std`
+//! off, only [`VERSION`] is exposed &mdash; the readings themselves require
+//! an operating system clock and cannot be portably provided without one.
+//!
+//! ```toml
+//! [dependencies]
+//! clock-lib = { version = "0.5", default-features = false }
+//! ```
+//!
 //! # License
 //!
 //! Dual-licensed under Apache-2.0 OR MIT.
