@@ -90,3 +90,26 @@ fn test_clock_is_usable_as_arc_dyn_trait_object() {
     let _ = clock.now();
     let _ = clock.wall();
 }
+
+#[test]
+fn test_manual_clock_advance_past_u64_max_saturates_instead_of_wrapping() {
+    let clock = ManualClock::new();
+    let t0 = clock.now();
+    clock.advance(Duration::from_nanos(u64::MAX - 5));
+    let t1 = clock.now();
+    clock.advance(Duration::from_nanos(10));
+    let t2 = clock.now();
+    assert!(t1 > t0);
+    assert!(t2 >= t1, "clock went backwards after overflow");
+    assert_eq!(clock.offset(), Duration::from_nanos(u64::MAX));
+}
+
+#[test]
+fn test_manual_clock_advance_duration_max_twice_stays_saturated() {
+    let clock = ManualClock::new();
+    clock.advance(Duration::MAX);
+    let once = clock.offset();
+    clock.advance(Duration::MAX);
+    assert_eq!(clock.offset(), once);
+    assert_eq!(once, Duration::from_nanos(u64::MAX));
+}

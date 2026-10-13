@@ -191,7 +191,24 @@ impl ManualClock {
     #[inline]
     pub fn advance(&self, by: Duration) {
         let nanos = u64::try_from(by.as_nanos()).unwrap_or(u64::MAX);
-        let _ = self.offset_nanos.fetch_add(nanos, Ordering::Relaxed);
+        // A compare-and-swap loop rather than `fetch_add`: `fetch_add` wraps
+        // on overflow, and a wrapped offset moves the clock backwards.
+        let mut current = self.offset_nanos.load(Ordering::Relaxed);
+        loop {
+            let next = current.saturating_add(nanos);
+            if next == current {
+                return;
+            }
+            match self.offset_nanos.compare_exchange_weak(
+                current,
+                next,
+                Ordering::Relaxed,
+                Ordering::Relaxed,
+            ) {
+                Ok(_) => return,
+                Err(actual) => current = actual,
+            }
+        }
     }
 
     /// Returns the cumulative offset that has been added to this clock
