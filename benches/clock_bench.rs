@@ -4,10 +4,11 @@
 //! `std::time` call it ultimately performs. The wrapper should add zero
 //! measurable overhead; if it doesn't, that's a regression.
 
+use std::hint::black_box;
 use std::time::{Duration, Instant, SystemTime};
 
 use clock_lib::{Clock, ManualClock, Monotonic, SystemClock, Wall};
-use criterion::{Criterion, black_box, criterion_group, criterion_main};
+use criterion::{Criterion, criterion_group, criterion_main};
 
 /// Monotonic reading latency — `Instant::now` vs every wrapper that calls it.
 fn bench_monotonic_now(c: &mut Criterion) {

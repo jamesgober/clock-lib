@@ -26,7 +26,11 @@ default = ["std"]
 std = []
 
 [dev-dependencies]
-criterion = { version = "0.5", features = ["html_reports"] }
+# Benchmark harness (dev-only, never built by downstream users). 0.7 is the
+# newest line compatible with MSRV 1.85 (0.8 needs 1.86). Default features are
+# off: rayon and plotters are not needed for text reports, and dropping them
+# removes the crossbeam/plotters/wasm-bindgen subtree from the dev graph.
+criterion = { version = "0.7", default-features = false, features = ["cargo_bench_support"] }
 
 [[bench]]
 name = "clock_bench"
