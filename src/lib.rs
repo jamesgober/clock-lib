@@ -334,3 +334,14 @@ pub fn unix_ms() -> u128 {
 pub fn unix_ns() -> u128 {
     Wall::now().unix_nanos()
 }
+
+/// Compiles and runs every Rust example in the README as a doctest, so the
+/// README cannot drift from the API.
+#[cfg(all(doctest, feature = "std"))]
+#[doc = include_str!("../README.md")]
+struct ReadmeDoctests;
+
+/// Compiles and runs every Rust example in `docs/API.md` as a doctest.
+#[cfg(all(doctest, feature = "std"))]
+#[doc = include_str!("../docs/API.md")]
+struct ApiDoctests;

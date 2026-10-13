@@ -19,42 +19,44 @@
 </p>
 
 <p>
-    <strong>clock-lib</strong> provides clean, correct access to the two kinds of time every program needs: <b>monotonic time</b> for measuring durations, and <b>wall-clock time</b> for timestamps. It draws a hard line between them at the API level, so you can never accidentally measure elapsed time with a clock that jumps backwards during an NTP sync.
+    <strong>clock-lib</strong> provides clean, correct access to the two kinds of time every program needs: <b>monotonic time</b> for measuring durations and deadlines, and <b>wall-clock time</b> for timestamps. It draws a hard line between them at the type level, so you can never accidentally measure elapsed time with a clock that jumps backwards during an NTP sync.
 </p>
 
 <p>
-    The headline feature is the <b>mockable clock</b>. In production, time comes from the operating system. In tests, you inject a <code>ManualClock</code> and advance time instantly &mdash; no <code>sleep</code>, no flaky timing, fully deterministic. Every time-driven system built on <strong>clock-lib</strong> (rate limiters, TTL caches, timeouts, schedulers) becomes trivially testable.
+    The headline feature is the <b>mockable clock</b>. In production, time comes from the operating system. In tests, you inject a <code>ManualClock</code> and move time instantly: no <code>sleep</code>, no flaky timing, exact durations, and reproducible timestamps when you pin the start time. You can even step wall time on its own to prove your code survives an NTP correction. Every time-driven system built on <strong>clock-lib</strong> (rate limiters, TTL caches, timeouts, schedulers) becomes straightforward to test.
 </p>
 
 <p>
-    Built for performance and correctness: a one-line Tier-1 API for the common case, zero runtime dependencies, <code>#![forbid(unsafe_code)]</code> at the crate root, and <code>no_std</code>-compatible builds. <strong>clock-lib</strong> wraps <code>std::time</code> with a thin, well-inlined layer that <a href="docs/PERFORMANCE.md">benchmarks at zero overhead</a> &mdash; you pay the syscall cost and nothing more.
+    Built for performance and correctness: a one-line Tier-1 API for the common case, zero default dependencies, <code>#![forbid(unsafe_code)]</code> at the crate root, and no panics anywhere in the public API. <strong>clock-lib</strong> wraps <code>std::time</code> with a thin, inlined layer that <a href="docs/PERFORMANCE.md">benchmarks within noise of raw <code>std::time</code></a>: you pay for the clock read and nothing more.
 </p>
 
 ## Features
 
 ### Two Kinds of Time, Clearly Separated
-- **Monotonic readings** &mdash; for measuring elapsed time; never goes backwards
-- **Wall-clock readings** &mdash; for timestamps and calendar time
-- **Type-level separation** &mdash; the API makes it impossible to subtract a wall-clock time from a monotonic one
+- **Monotonic readings** &mdash; for elapsed time and deadlines; never go backwards
+- **Wall-clock readings** &mdash; for timestamps; UTC, RFC 3339 formatting built in
+- **Type-level separation** &mdash; the compiler refuses to subtract a wall-clock time from a monotonic one
+- **Arithmetic that never panics** &mdash; `start + ttl` saturates instead of overflowing; `checked_*` when you want an `Option`
 
 ### Mockable Clock (the killer feature)
-- **`SystemClock`** &mdash; reads the OS in production
-- **`ManualClock`** &mdash; advance time instantly in tests, fully deterministic
-- **`Clock` trait** &mdash; inject time into any system for testability
+- **`Clock` trait** &mdash; inject time into any system; works through `&C`, `Box<C>`, `Arc<C>` and `dyn Clock`
+- **`SystemClock`** &mdash; reads the OS in production; zero-sized and `const`
+- **`ManualClock`** &mdash; lock-free test clock: `advance`, `advance_to`, fixed start time, wall-only steps (simulate NTP jumps), auto-advance per reading
+- **`Deadline` / `Stopwatch`** &mdash; the two most common timing patterns, on any clock
 
 ### Simple Tier-1 API
 - **`now()`** &mdash; monotonic reading
 - **`elapsed(earlier)`** &mdash; duration since a monotonic reading
 - **`wall()`** &mdash; wall-clock reading
-- **`unix()` / `unix_ms()` / `unix_ns()`** &mdash; unix time conveniences
+- **`unix()` / `unix_ms()` / `unix_ns()`** &mdash; Unix time conveniences
 
 ### Lean & Correct
-- **Zero runtime dependencies** &mdash; wraps `std::time`
+- **Zero default dependencies** &mdash; wraps `std::time`; `serde` and `web-time` are opt-in features
 - **`#![forbid(unsafe_code)]`** &mdash; enforced by the compiler
-- **`no_std`-compatible** &mdash; the crate builds against bare-metal targets with `default-features = false`
-- **Cross-platform** &mdash; Linux, macOS, Windows
+- **Interop** &mdash; lossless `From` conversions to and from `Instant` and `SystemTime`
+- **Cross-platform** &mdash; Linux, macOS, Windows; `wasm32-unknown-unknown` with the `web-time` feature
 
-> This crate deliberately does **not** do calendar math, date formatting, or timezones. For that, use [`chrono`](https://crates.io/crates/chrono) or [`time`](https://crates.io/crates/time). clock-lib is the lean primitive layer beneath them.
+> This crate deliberately does **not** do calendar math, parsing, or time zones. For that, use [`chrono`](https://crates.io/crates/chrono), [`time`](https://crates.io/crates/time) or [`jiff`](https://crates.io/crates/jiff). clock-lib is the lean primitive layer beneath them.
 
 <hr>
 
@@ -62,17 +64,23 @@
 
 ```toml
 [dependencies]
-clock-lib = "1.0"
+clock-lib = "1.1"
 ```
 
-For `no_std` builds, opt out of the default `std` feature:
+### Optional features
+
+| Feature | Default | Enables |
+| --- | --- | --- |
+| `std` | yes | Every reading API. |
+| `serde` | no | `Serialize`/`Deserialize` for `Wall`, wire-compatible with `std::time::SystemTime`. |
+| `web-time` | no | Browser clock on `wasm32-unknown-unknown`, where `std::time` panics. No-op elsewhere. |
 
 ```toml
 [dependencies]
-clock-lib = { version = "1.0", default-features = false }
+clock-lib = { version = "1.1", features = ["serde"] }
 ```
 
-In `no_std` mode, only the `VERSION` constant is exposed &mdash; the reading APIs all require an OS clock and are gated behind the `std` feature. This is the honest cost of a portable clock library: the readings themselves are platform-specific.
+With `default-features = false`, the crate compiles for `no_std` targets but exposes only the `VERSION` constant: every reading needs an operating-system clock. That keeps a dependent crate's own `no_std` build working; it does not provide a clock on bare metal.
 
 <hr>
 
@@ -80,17 +88,23 @@ In `no_std` mode, only the `VERSION` constant is exposed &mdash; the reading API
 
 ```rust
 use clock_lib as clock;
+use std::time::Duration;
 
-// Measure elapsed time (monotonic — safe)
+// Measure elapsed time (monotonic: safe across NTP corrections)
 let start = clock::now();
 // ... do work ...
 let took = clock::elapsed(start);
 
+// Build a deadline
+let deadline = start + Duration::from_secs(5);
+assert!(clock::now() < deadline);
+
 // Get a timestamp (wall-clock)
 let unix_seconds = clock::unix();
+let rfc3339 = clock::wall().to_string(); // "2026-10-13T08:30:00.123456700Z"
 ```
 
-Reach for the typed surface when you need it &mdash; [`Monotonic`](https://docs.rs/clock-lib/latest/clock_lib/struct.Monotonic.html) for elapsed-time math, [`Wall`](https://docs.rs/clock-lib/latest/clock_lib/struct.Wall.html) for timestamps. The compiler refuses to mix the two, so you cannot accidentally measure an interval with a clock that can step backwards.
+Reach for the typed surface when you need it &mdash; [`Monotonic`](https://docs.rs/clock-lib/latest/clock_lib/struct.Monotonic.html) for elapsed-time math and deadlines, [`Wall`](https://docs.rs/clock-lib/latest/clock_lib/struct.Wall.html) for timestamps. The compiler refuses to mix the two.
 
 ### Deterministic Time in Tests
 
@@ -99,7 +113,7 @@ use clock_lib::{Clock, ManualClock, Monotonic};
 use std::time::Duration;
 
 fn expired<C: Clock>(clock: &C, stamp: Monotonic, ttl: Duration) -> bool {
-    clock.now().duration_since(stamp) >= ttl
+    clock.elapsed(stamp) >= ttl
 }
 
 let clock = ManualClock::new();
@@ -110,14 +124,51 @@ clock.advance(Duration::from_secs(60));   // instant, no sleep
 assert!(expired(&clock, stamp, Duration::from_secs(60)));
 ```
 
-Inject [`Clock`](https://docs.rs/clock-lib/latest/clock_lib/trait.Clock.html) into anything time-driven (rate limiters, TTL caches, timeouts) and your test suite drops every `thread::sleep` it had.
+Inject [`Clock`](https://docs.rs/clock-lib/latest/clock_lib/trait.Clock.html) into anything time-driven and your test suite drops every `thread::sleep` it had. Inside code that takes a clock, measure with `clock.elapsed(stamp)`: the free `clock_lib::elapsed` always reads the OS clock.
+
+### Reproducible Timestamps and NTP Jumps
+
+```rust
+use clock_lib::{Clock, ManualClock, Wall};
+use std::time::Duration;
+
+let start = Wall::from_unix_seconds(1_700_000_000).expect("representable");
+let clock = ManualClock::with_start(start);
+let began = clock.now();
+
+clock.advance(Duration::from_secs(90));
+assert_eq!(clock.wall().to_string(), "2023-11-14T22:14:50Z"); // same on every run
+
+clock.step_wall_back(Duration::from_secs(3_600));             // NTP steps the wall clock back
+assert_eq!(clock.elapsed(began), Duration::from_secs(90));    // monotonic time is unaffected
+```
+
+### Deadlines and Stopwatches
+
+```rust
+use clock_lib::{Deadline, ManualClock, Stopwatch};
+use std::time::Duration;
+
+let clock = ManualClock::new();
+let deadline = Deadline::after_with(&clock, Duration::from_secs(5));
+let mut watch = Stopwatch::start_with(&clock);
+
+clock.advance(Duration::from_secs(2));
+assert_eq!(deadline.remaining(), Duration::from_secs(3));
+assert_eq!(watch.lap(), Duration::from_secs(2));
+
+clock.advance(Duration::from_secs(3));
+assert!(deadline.is_expired());
+
+// In production: Deadline::after(ttl) and Stopwatch::start() use the OS clock.
+```
 
 <hr>
 
 ## Documentation
 
 - [API reference](docs/API.md) &mdash; every public type, trait, and function with examples.
-- [Performance](docs/PERFORMANCE.md) &mdash; benchmark methodology and the zero-overhead claim, verified.
+- [Performance](docs/PERFORMANCE.md) &mdash; benchmark methodology and measured overhead against raw `std::time`.
 - [Developer guidelines](docs/GUIDELINES.md) &mdash; the engineering bar this project is built to.
 - [Release notes](docs/release/) &mdash; what shipped, when, and why.
 
@@ -129,7 +180,7 @@ Contributions are welcome under the project's dual license. Before opening a pul
 
 1. `cargo fmt --all -- --check` passes.
 2. `cargo clippy --all-targets --all-features -- -D warnings` is clean.
-3. `cargo test --all-features` passes.
+3. `cargo test --all-features`, `cargo test` and `cargo test --no-default-features` pass.
 4. New public items include documentation and at least one example.
 5. The [API reference](docs/API.md) and [CHANGELOG](CHANGELOG.md) are updated alongside code changes.
 
