@@ -97,9 +97,11 @@
 //! macOS. Back-to-back monotonic readings are often equal. That is normal
 //! for a non-decreasing clock.
 //!
-//! On `wasm32-unknown-unknown`, the standard library has no clock and
-//! `std::time::Instant::now()` panics. Enable the `web-time` feature there
-//! to read the browser's `performance.now()` and `Date.now()` instead.
+//! On `wasm32-unknown-unknown` the standard library has no clock:
+//! `std::time::Instant::now()` and `SystemTime::now()` panic, so every call
+//! that reads the operating system clock panics there. `ManualClock`, the
+//! conversions and all arithmetic still work. Browser time support is not
+//! part of 1.1 (see the CHANGELOG).
 //!
 //! # Feature flags
 //!
@@ -107,7 +109,6 @@
 //! | --- | --- | --- |
 //! | `std` | yes | Every reading API. Without it, only [`VERSION`] is exposed. |
 //! | `serde` | no | `Serialize`/`Deserialize` for [`Wall`], in the same format as `std::time::SystemTime`. Adds the `serde` dependency. |
-//! | `web-time` | no | On `wasm32-unknown-unknown` only, reads time through the `web-time` crate. A no-op with no dependency on every other target. |
 //!
 //! With default features disabled the crate compiles for `no_std` targets,
 //! but it exposes nothing except [`VERSION`]: every reading needs an

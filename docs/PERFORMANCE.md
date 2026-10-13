@@ -107,6 +107,15 @@ New in 1.1. `Monotonic` arithmetic saturates instead of panicking; on the in-ran
 | `std Instant - Instant` | **2.12 ns** |
 | `Monotonic - Monotonic` | 2.08 ns |
 
+**Overflow ("never" deadlines).** `now + Duration::MAX` saturates. The clamp point is found by a binary search the first time a process overflows (about 1 µs). It is then cached, because it is verified to be the platform's absolute limit, so later overflows cost one atomic load. Measured in one session on a loaded machine (about 77 concurrent compiler processes, so the absolute numbers are inflated):
+
+| Bench | 1.1.0 as first committed | 1.1.0 (cached limit) |
+| --- | --- | --- |
+| `Monotonic + Duration::MAX` | 504 ns | 3.4–4.0 ns |
+| `Deadline::after(Duration::MAX)` (includes the OS clock read) | 792 ns | 36.7 ns |
+
+The same two runs put `Monotonic + Duration` at 1.67 / 1.55 ns against `std` `Instant + Duration` at 2.00 / 1.56 ns: parity. An independent review on a saturated host had measured the wrapper slower; on this machine it is not. Both paths are one `checked_add`, and the overflow branch is out of line.
+
 ### Deadline and Stopwatch
 
 New in 1.1, on the system clock. One clock read each; the wrappers add nothing over writing the comparison by hand.

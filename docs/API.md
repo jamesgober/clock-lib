@@ -76,7 +76,6 @@ By default `clock-lib` has zero runtime dependencies and contains no `unsafe` co
 | --- | --- | --- | --- |
 | `std` | yes | Every reading API: `Monotonic`, `Wall`, `Clock`, `SystemClock`, `ManualClock`, `Deadline`, `Stopwatch`, and the Tier-1 free functions. | none |
 | `serde` | no | `Serialize` / `Deserialize` for [`Wall`](#wall-serde), in the same format as `std::time::SystemTime`. Implies `std`. | `serde` |
-| `web-time` | no | On `wasm32-unknown-unknown`, reads time through the `web-time` crate (`performance.now()` / `Date.now()`). A no-op on every other target. Implies `std`. | `web-time` (wasm32-unknown-unknown only) |
 
 ```toml
 [dependencies]
@@ -97,11 +96,10 @@ clock-lib = { version = "1.1", default-features = false }
 | Windows | `QueryPerformanceCounter` | `GetSystemTimePreciseAsFileTime` | 100 ns |
 | Linux | `clock_gettime(CLOCK_MONOTONIC)` (vDSO) | `clock_gettime(CLOCK_REALTIME)` (vDSO) | 1 ns nominal |
 | macOS | `clock_gettime(CLOCK_UPTIME_RAW)` | `clock_gettime(CLOCK_REALTIME)` | 1 ns nominal |
-| `wasm32-unknown-unknown` + `web-time` | `performance.now()` | `Date.now()` | browser-dependent (typically 5–100 µs; `Date.now()` is 1 ms) |
 
 Back-to-back monotonic readings are often equal, especially on Windows. That is correct for a non-decreasing clock. On Windows, `Wall::unix_nanos()` is always a multiple of 100.
 
-On `wasm32-unknown-unknown` **without** the `web-time` feature, the standard library has no clock: `std::time::Instant::now()` and `SystemTime::now()` panic, so every function that reads the OS clock panics. `ManualClock` readings and conversions still work.
+On `wasm32-unknown-unknown` the standard library has no clock: `std::time::Instant::now()` and `SystemTime::now()` panic, so every function that reads the OS clock panics there. `ManualClock` readings, conversions and arithmetic still work. Browser time support is not part of 1.1.
 
 <br>
 
@@ -326,7 +324,7 @@ Monotonic += Duration
 Monotonic -= Duration
 ```
 
-The `+` and `-` operators saturate rather than panic, so `now + Duration::MAX` is a valid "never" deadline. Use `checked_add` / `checked_sub` when overflow should be an error.
+The `+` and `-` operators saturate rather than panic, so `now + Duration::MAX` is a valid "never" deadline. The first overflow in a process locates the platform's limit (about 1 µs); later ones reuse it and cost a few nanoseconds. Use `checked_add` / `checked_sub` when overflow should be an error.
 
 ```rust
 use clock_lib::Monotonic;
@@ -356,7 +354,7 @@ impl From<Instant> for Monotonic
 impl From<Monotonic> for Instant
 ```
 
-Lossless in both directions. Use them to pass readings to APIs that take an `Instant` (`Receiver::recv_deadline`, `tokio::time::Instant::from_std`) or to build readings in a custom [`Clock`](#clock). With the `web-time` feature on `wasm32-unknown-unknown`, `Instant` is `web_time::Instant`.
+Lossless in both directions. Use them to pass readings to APIs that take an `Instant` (`Receiver::recv_deadline`, `tokio::time::Instant::from_std`) or to build readings in a custom [`Clock`](#clock). The impls always use `std::time::Instant`; no feature changes them.
 
 ```rust
 use clock_lib::Monotonic;
@@ -475,7 +473,7 @@ impl From<SystemTime> for Wall
 impl From<Wall> for SystemTime
 ```
 
-Lossless in both directions. Use them for `File::set_modified`, HTTP date handling, or conversion into `chrono` / `time` types. With the `web-time` feature on `wasm32-unknown-unknown`, `SystemTime` is `web_time::SystemTime`.
+Lossless in both directions. Use them for `File::set_modified`, HTTP date handling, or conversion into `chrono` / `time` types. The impls always use `std::time::SystemTime`; no feature changes them.
 
 ```rust
 use clock_lib::Wall;

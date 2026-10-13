@@ -351,12 +351,9 @@ impl Wall {
     }
 }
 
-/// Wraps a `SystemTime` so it can be used wherever this crate expects a
-/// reading, for example in a custom [`Clock`](crate::Clock) implementation.
-///
-/// With the `web-time` feature on `wasm32-unknown-unknown`, the source type
-/// is `web_time::SystemTime`; everywhere else it is
-/// [`std::time::SystemTime`].
+/// Wraps a [`std::time::SystemTime`] so it can be used wherever this crate
+/// expects a reading, for example in a custom [`Clock`](crate::Clock)
+/// implementation. Lossless, and available with every feature combination.
 ///
 /// # Examples
 ///

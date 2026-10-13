@@ -1,10 +1,4 @@
-//! Platform time sources and saturating arithmetic on them.
-//!
-//! Everything in the crate that names the operating system's time types goes
-//! through the re-exports in this module, so the `web-time` feature can swap
-//! the source on `wasm32-unknown-unknown` in exactly one place. On every
-//! other target, and whenever `web-time` is off, these are the `std::time`
-//! types.
+//! Platform time types and saturating arithmetic on them.
 //!
 //! The saturating helpers exist because `Instant + Duration` and
 //! `SystemTime + Duration` panic on overflow, and the representable range of
@@ -12,13 +6,35 @@
 //! 1601 on Windows). Library code must never panic, so every addition the
 //! crate performs on its own goes through `checked_*` and, on the rare
 //! overflow, clamps to the furthest point reachable from the starting value.
+//!
+//! `Monotonic + Duration::MAX` is the documented "never" deadline, so the
+//! `Instant` overflow path is not rare. Finding the clamp point is a binary
+//! search (~95 `checked_add` calls, about 1 us). The first overflow in a
+//! process pays that once; if the result is the platform's absolute limit
+//! (nothing beyond it is representable), it is cached and every later
+//! overflow costs a single atomic load.
 
 use core::time::Duration;
-
-#[cfg(not(all(feature = "web-time", target_family = "wasm", target_os = "unknown")))]
+use std::sync::OnceLock;
 pub(crate) use std::time::{Instant, SystemTime, UNIX_EPOCH};
-#[cfg(all(feature = "web-time", target_family = "wasm", target_os = "unknown"))]
-pub(crate) use web_time::{Instant, SystemTime, UNIX_EPOCH};
+
+/// The latest representable `Instant`, once one overflow has found it and
+/// verified it is an absolute limit. Write-once, process-wide, and only a
+/// cache of a platform constant: it never changes observable results.
+static INSTANT_CEILING: OnceLock<Instant> = OnceLock::new();
+
+/// The earliest representable `Instant`; see [`INSTANT_CEILING`].
+static INSTANT_FLOOR: OnceLock<Instant> = OnceLock::new();
+
+/// Steps used to check that a clamp point is absolute. Several sizes, so a
+/// platform whose ticks are coarser than 1 ns (where a 1 ns step truncates
+/// to nothing) is still probed by a step of at least one tick.
+const LIMIT_PROBES: [Duration; 4] = [
+    Duration::from_nanos(1),
+    Duration::from_micros(1),
+    Duration::from_millis(1),
+    Duration::from_secs(1),
+];
 
 const NANOS_PER_SEC: u128 = 1_000_000_000;
 
@@ -57,7 +73,7 @@ pub(crate) fn duration_from_nanos_saturating(nanos: u128) -> Duration {
 pub(crate) fn instant_add(base: Instant, by: Duration) -> Instant {
     match base.checked_add(by) {
         Some(sum) => sum,
-        None => saturate(base, by, |b, d| b.checked_add(d)),
+        None => instant_ceiling(base, by),
     }
 }
 
@@ -66,8 +82,59 @@ pub(crate) fn instant_add(base: Instant, by: Duration) -> Instant {
 pub(crate) fn instant_sub(base: Instant, by: Duration) -> Instant {
     match base.checked_sub(by) {
         Some(diff) => diff,
-        None => saturate(base, by, |b, d| b.checked_sub(d)),
+        None => instant_floor(base, by),
     }
+}
+
+/// Overflow path of [`instant_add`]: the cached absolute ceiling, or a
+/// search from `base` (caching the result when it proves to be absolute).
+#[cold]
+#[inline(never)]
+fn instant_ceiling(base: Instant, by: Duration) -> Instant {
+    // Only verified absolute limits are cached, and an absolute ceiling is
+    // at or after every `Instant`, including `base + by` clamped.
+    if let Some(&ceiling) = INSTANT_CEILING.get() {
+        return ceiling;
+    }
+    let reached = saturate(base, by, |b, d| b.checked_add(d));
+    if is_absolute_ceiling(reached) {
+        // A racing thread can only have stored the same platform constant.
+        let _ = INSTANT_CEILING.set(reached);
+    }
+    reached
+}
+
+/// Overflow path of [`instant_sub`]; mirror of [`instant_ceiling`].
+#[cold]
+#[inline(never)]
+fn instant_floor(base: Instant, by: Duration) -> Instant {
+    // See `instant_ceiling`: a cached floor is at or before every `Instant`.
+    if let Some(&floor) = INSTANT_FLOOR.get() {
+        return floor;
+    }
+    let reached = saturate(base, by, |b, d| b.checked_sub(d));
+    if is_absolute_floor(reached) {
+        // A racing thread can only have stored the same platform constant.
+        let _ = INSTANT_FLOOR.set(reached);
+    }
+    reached
+}
+
+/// `true` when no probe step moves `point` to a later representable
+/// instant, i.e. `point` is the platform's latest `Instant`. Only then is
+/// it safe to reuse for other bases: every in-range result is `<= point`,
+/// so returning it keeps saturating arithmetic monotone.
+fn is_absolute_ceiling(point: Instant) -> bool {
+    LIMIT_PROBES
+        .iter()
+        .all(|&step| point.checked_add(step).is_none_or(|next| next <= point))
+}
+
+/// Mirror of [`is_absolute_ceiling`] for the earliest `Instant`.
+fn is_absolute_floor(point: Instant) -> bool {
+    LIMIT_PROBES
+        .iter()
+        .all(|&step| point.checked_sub(step).is_none_or(|prev| prev >= point))
 }
 
 /// `base + by`, clamped to the furthest time reachable from `base`.
@@ -95,9 +162,10 @@ pub(crate) fn system_sub(base: SystemTime, by: Duration) -> SystemTime {
 /// `d`, it succeeds for every smaller `d`. That holds for `checked_add` and
 /// `checked_sub` on both `Instant` and `SystemTime`. The search is a plain
 /// binary search over nanoseconds, so it costs at most ~95 `step` calls. It
-/// only runs after the fast `checked_*` call has already failed, which in
-/// practice means a test deliberately pushed a clock to the edge of the
-/// platform's range.
+/// only runs after the fast `checked_*` call has already failed. For
+/// `Instant` the result is usually cached (see the module docs); for
+/// `SystemTime` it is only reached by `ManualClock` wall readings pushed to
+/// the edge of the platform's range, so it is not cached.
 #[cold]
 #[inline(never)]
 fn saturate<T: Copy>(base: T, limit: Duration, step: impl Fn(T, Duration) -> Option<T>) -> T {
@@ -205,6 +273,30 @@ mod tests {
         assert!(bottom <= base);
         assert_eq!(bottom.checked_sub(Duration::from_nanos(1)), None);
         assert_eq!(instant_sub(bottom, Duration::from_secs(1)), bottom);
+    }
+
+    #[test]
+    fn test_instant_limits_are_detected_as_absolute() {
+        let now = Instant::now();
+        assert!(!is_absolute_ceiling(now));
+        assert!(!is_absolute_floor(now));
+        let ceiling = saturate(now, Duration::MAX, |b, d| b.checked_add(d));
+        let floor = saturate(now, Duration::MAX, |b, d| b.checked_sub(d));
+        assert!(is_absolute_ceiling(ceiling));
+        assert!(is_absolute_floor(floor));
+    }
+
+    #[test]
+    fn test_instant_overflow_caches_limits_and_reuses_them() {
+        let base = Instant::now();
+        let top = instant_add(base, Duration::MAX);
+        assert_eq!(INSTANT_CEILING.get(), Some(&top));
+        let later = base + Duration::from_secs(60);
+        assert_eq!(instant_add(later, Duration::MAX), top);
+
+        let bottom = instant_sub(base, Duration::MAX);
+        assert_eq!(INSTANT_FLOOR.get(), Some(&bottom));
+        assert_eq!(instant_sub(later, Duration::MAX), bottom);
     }
 
     #[test]

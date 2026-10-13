@@ -87,6 +87,16 @@ fn test_deadline_clock_accessor_returns_bound_clock() {
 }
 
 #[test]
+fn test_deadline_over_dyn_clock_is_debug() {
+    let boxed: Box<dyn Clock> = Box::new(ManualClock::new());
+    let deadline = Deadline::after_with(boxed, Duration::from_secs(1));
+    let text = format!("{deadline:?}");
+    assert!(text.starts_with("Deadline { clock: "));
+    assert!(text.contains("Box<dyn "));
+    assert!(text.contains("expires_at: Monotonic("));
+}
+
+#[test]
 fn test_deadline_is_copy_with_copy_clock() {
     let clock = ManualClock::new();
     let a = Deadline::after_with(&clock, Duration::from_secs(1));

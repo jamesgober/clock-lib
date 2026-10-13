@@ -122,6 +122,23 @@ fn test_dyn_reference_clock_is_accepted_by_generic_code() {
     assert_eq!(clock.elapsed(start), Duration::from_secs(9));
 }
 
+/// Feature additivity: the conversion impls take and return the `std::time`
+/// types under every feature combination CI builds (all, default, none of
+/// the optional ones). No feature may change these signatures.
+#[test]
+fn test_conversions_use_std_types_under_every_feature_set() {
+    fn to_readings(instant: Instant, time: SystemTime) -> (Monotonic, Wall) {
+        (Monotonic::from(instant), Wall::from(time))
+    }
+    fn from_readings(reading: Monotonic, stamp: Wall) -> (Instant, SystemTime) {
+        (reading.into(), stamp.into())
+    }
+    let instant = Instant::now();
+    let time = SystemTime::UNIX_EPOCH + Duration::from_secs(1);
+    let (reading, stamp) = to_readings(instant, time);
+    assert_eq!(from_readings(reading, stamp), (instant, time));
+}
+
 /// CLK-003: a custom clock can be implemented from std types alone.
 #[test]
 fn test_custom_clock_built_from_std_conversions() {

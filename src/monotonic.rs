@@ -37,7 +37,9 @@ use crate::platform::{self, Instant};
 /// platform's representable range (the `+` and `-` operators,
 /// [`saturating_add`](Monotonic::saturating_add),
 /// [`saturating_sub`](Monotonic::saturating_sub)). `now + Duration::MAX` is
-/// therefore a usable "never" deadline.
+/// therefore a usable "never" deadline. The first overflow in a process
+/// locates the platform's limit (about 1 µs); every later one reuses it and
+/// costs a few nanoseconds.
 ///
 /// # Resolution
 ///
@@ -261,11 +263,9 @@ impl Monotonic {
     }
 }
 
-/// Wraps an `Instant` so it can be used wherever this crate expects a
-/// reading, for example in a custom [`Clock`](crate::Clock) implementation.
-///
-/// With the `web-time` feature on `wasm32-unknown-unknown`, the source type
-/// is `web_time::Instant`; everywhere else it is [`std::time::Instant`].
+/// Wraps a [`std::time::Instant`] so it can be used wherever this crate
+/// expects a reading, for example in a custom [`Clock`](crate::Clock)
+/// implementation. Lossless, and available with every feature combination.
 ///
 /// # Examples
 ///

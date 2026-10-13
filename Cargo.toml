@@ -35,20 +35,12 @@ default = ["std"]
 std = []
 # `Serialize`/`Deserialize` for `Wall`, wire-compatible with `SystemTime`.
 serde = ["std", "dep:serde"]
-# Browser clock on wasm32-unknown-unknown, where std has none. No-op elsewhere.
-web-time = ["std", "dep:web-time"]
 
 [dependencies]
 # Optional (feature `serde`). The de-facto serialization framework; mature,
 # maintained, no unsafe in the parts used here, MSRV well below ours. Only
 # the `std` feature is needed (for the `SystemTime` impls); no derive macros.
 serde = { version = "1.0.200", optional = true, default-features = false, features = ["std"] }
-
-# Optional (feature `web-time`), and only on wasm32-unknown-unknown, where
-# `std::time::Instant::now()` panics. web-time re-exports `std::time` on every
-# other target, so enabling the feature elsewhere pulls in nothing.
-[target.'cfg(all(target_family = "wasm", target_os = "unknown"))'.dependencies]
-web-time = { version = "1.1.0", optional = true }
 
 [dev-dependencies]
 # Benchmark harness (dev-only, never built by downstream users). 0.7 is the

@@ -51,10 +51,10 @@
 - **`unix()` / `unix_ms()` / `unix_ns()`** &mdash; Unix time conveniences
 
 ### Lean & Correct
-- **Zero default dependencies** &mdash; wraps `std::time`; `serde` and `web-time` are opt-in features
+- **Zero default dependencies** &mdash; wraps `std::time`; `serde` is an opt-in feature
 - **`#![forbid(unsafe_code)]`** &mdash; enforced by the compiler
 - **Interop** &mdash; lossless `From` conversions to and from `Instant` and `SystemTime`
-- **Cross-platform** &mdash; Linux, macOS, Windows; `wasm32-unknown-unknown` with the `web-time` feature
+- **Cross-platform** &mdash; Linux, macOS, Windows
 
 > This crate deliberately does **not** do calendar math, parsing, or time zones. For that, use [`chrono`](https://crates.io/crates/chrono), [`time`](https://crates.io/crates/time) or [`jiff`](https://crates.io/crates/jiff). clock-lib is the lean primitive layer beneath them.
 
@@ -73,7 +73,6 @@ clock-lib = "1.1"
 | --- | --- | --- |
 | `std` | yes | Every reading API. |
 | `serde` | no | `Serialize`/`Deserialize` for `Wall`, wire-compatible with `std::time::SystemTime`. |
-| `web-time` | no | Browser clock on `wasm32-unknown-unknown`, where `std::time` panics. No-op elsewhere. |
 
 ```toml
 [dependencies]

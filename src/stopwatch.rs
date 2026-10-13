@@ -1,5 +1,6 @@
 //! Elapsed-time measurement with laps, against any clock.
 
+use core::fmt;
 use core::time::Duration;
 
 use crate::{Clock, Monotonic, SystemClock};
@@ -33,11 +34,23 @@ use crate::{Clock, Monotonic, SystemClock};
 /// assert_eq!(watch.elapsed(), Duration::from_millis(200));
 /// ```
 #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct Stopwatch<C = SystemClock> {
     clock: C,
     started_at: Monotonic,
     lap_started_at: Monotonic,
+}
+
+/// Prints the start and lap readings and the clock's type name. The clock
+/// itself is not printed, so `Stopwatch<Box<dyn Clock>>` is `Debug` too.
+impl<C> fmt::Debug for Stopwatch<C> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Stopwatch")
+            .field("clock", &core::any::type_name::<C>())
+            .field("started_at", &self.started_at)
+            .field("lap_started_at", &self.lap_started_at)
+            .finish()
+    }
 }
 
 impl Stopwatch<SystemClock> {

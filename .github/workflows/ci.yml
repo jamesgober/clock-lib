@@ -134,8 +134,10 @@ jobs:
           targets: wasm32-unknown-unknown
           components: clippy
       - uses: Swatinem/rust-cache@v2
-      - name: Clippy (web-time + serde)
-        run: cargo clippy --target wasm32-unknown-unknown --features web-time,serde -- -D warnings
+      # Compile-only: std has no clock on this target, so OS-clock reads
+      # panic at runtime (documented). Browser time is deferred past 1.1.
+      - name: Clippy (all features)
+        run: cargo clippy --target wasm32-unknown-unknown --all-features -- -D warnings
       - name: Check (default features)
         run: cargo check --target wasm32-unknown-unknown
 

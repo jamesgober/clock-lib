@@ -1,5 +1,6 @@
 //! A point in monotonic time after which something counts as expired.
 
+use core::fmt;
 use core::time::Duration;
 
 use crate::{Clock, Monotonic, SystemClock};
@@ -46,10 +47,21 @@ use crate::{Clock, Monotonic, SystemClock};
 /// assert_eq!(polls, 4);
 /// ```
 #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct Deadline<C = SystemClock> {
     clock: C,
     expires_at: Monotonic,
+}
+
+/// Prints the expiry reading and the clock's type name. The clock itself is
+/// not printed, so `Deadline<Box<dyn Clock>>` is `Debug` too.
+impl<C> fmt::Debug for Deadline<C> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Deadline")
+            .field("clock", &core::any::type_name::<C>())
+            .field("expires_at", &self.expires_at)
+            .finish()
+    }
 }
 
 impl Deadline<SystemClock> {

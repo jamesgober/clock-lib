@@ -22,7 +22,8 @@ This document describes the engineering standards this project is built to.
 - **MSRV:** Rust 1.85 (declared in `Cargo.toml`, built and tested in CI)
 - **Edition:** 2024
 - **License:** Apache-2.0 OR MIT (dual)
-- **Cross-platform:** Linux, macOS, Windows; `wasm32-unknown-unknown` with the `web-time` feature; `no_std` compile check on `thumbv7em-none-eabihf`
+- **Cross-platform:** Linux, macOS, Windows; compile checks on `wasm32-unknown-unknown` and, without `std`, on `thumbv7em-none-eabihf`
+- **Additive features:** a feature may add items or impls, never change the types of existing ones. `tests/clock.rs` pins the `From` impls to the `std::time` types, and CI runs it under every feature set.
 - **Dependencies:** none by default. Optional dependencies live behind non-default features and are justified in `Cargo.toml` and the CHANGELOG.
 
 ## Quality Bar
@@ -51,7 +52,7 @@ cargo test
 cargo test --no-default-features
 RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all-features
 cargo build --no-default-features --target thumbv7em-none-eabihf
-cargo +stable clippy --target wasm32-unknown-unknown --features web-time,serde -- -D warnings
+cargo +stable clippy --target wasm32-unknown-unknown --all-features -- -D warnings
 RUSTFLAGS="--cfg loom" cargo test --lib --release loom
 cargo audit
 cargo deny check

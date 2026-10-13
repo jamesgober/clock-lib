@@ -343,9 +343,10 @@ impl ManualClock {
     /// Later [`advance`](Self::advance) calls move the wall reading on from
     /// `to`. The adjustment is computed against the offset at the time of
     /// the call, so call it from the test driver, not concurrently with
-    /// other threads advancing the same clock. If `to` is more than about
-    /// 292 years away from the current wall reading, the adjustment
-    /// saturates.
+    /// other threads advancing the same clock. Any earlier wall-only
+    /// adjustment is replaced, not added to. The adjustment is measured from
+    /// the anchor plus the current offset; if `to` is more than about 292
+    /// years from that point, it saturates.
     ///
     /// # Examples
     ///

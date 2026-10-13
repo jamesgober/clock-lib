@@ -24,9 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Fixes the `ManualClock::advance` overflow wrap and makes the mock clock and
 the reading types usable for real-world code: conversions, deadline
 arithmetic, a fixed-start and NTP-step-capable `ManualClock`,
-`Clock::elapsed`, `Deadline`/`Stopwatch`, RFC 3339 formatting, and opt-in
-`serde` and `web-time` features. Every change is additive; no public item
-was removed or changed signature. MSRV stays 1.85.
+`Clock::elapsed`, `Deadline`/`Stopwatch`, RFC 3339 formatting, and an
+opt-in `serde` feature. Every change is additive; no public item was
+removed or changed signature. MSRV stays 1.85.
 
 ### Added
 
@@ -71,13 +71,6 @@ was removed or changed signature. MSRV stays 1.85.
   only its `std` feature (no derive macros). Justification: the de-facto
   serialization framework, mature and maintained, MSRV 1.56, and
   timestamps routinely end up in logs, events and database rows.
-- **Feature `web-time`** (off by default): on `wasm32-unknown-unknown`,
-  where `std::time` panics, readings come from the `web-time` crate
-  (`performance.now()` / `Date.now()`). New optional dependency:
-  `web-time` 1.1, declared only for `wasm32-unknown-unknown`, so enabling
-  the feature on any other target pulls in nothing. Justification: the
-  standard drop-in for browser time (94M recent downloads), MSRV 1.60, and
-  without it every Tier-1 call panics in the browser.
 - **Tests.** Unit tests in every module; new integration suites for
   `ManualClock`, `Deadline`, `Stopwatch`, concurrency (contended
   `advance`, saturation, auto-advance uniqueness, wall steps), property
@@ -94,7 +87,7 @@ was removed or changed signature. MSRV stays 1.85.
 - **CI**: format; clippy and tests with all, default and no default
   features on Linux, macOS and Windows for both stable and 1.85.0; beta
   (allowed to fail); a docs.rs build on nightly with `--cfg docsrs`;
-  `wasm32-unknown-unknown` with `web-time` and `serde` on stable and 1.85;
+  `wasm32-unknown-unknown` compile checks on stable and 1.85;
   a bare-metal `no_std` build; loom; cargo-semver-checks; audit; deny.
   `.github/dependabot.yml` for Cargo and GitHub Actions.
 
@@ -107,6 +100,22 @@ was removed or changed signature. MSRV stays 1.85.
   std change back to panicking can no longer reach users.
 - `ManualClock` readings saturate at the platform's representable range
   instead of panicking (the 1.0 docs listed a theoretical panic).
+- Saturating `Monotonic` arithmetic caches the platform's `Instant` limits
+  after the first overflow, so `now + Duration::MAX` and
+  `Deadline::after(Duration::MAX)` cost a few nanoseconds instead of a
+  ~0.5–0.8 µs binary search each time.
+- `Deadline` and `Stopwatch` implement `Debug` for every clock type,
+  including `Box<dyn Clock>` and `Arc<dyn Clock>` (the clock prints as its
+  type name).
+- **Not included: a `web-time` feature.** A pre-release review found the
+  draft design non-additive: on `wasm32-unknown-unknown` it changed the
+  types of the public `From` impls, so enabling it anywhere in a dependency
+  graph broke other crates' conversions. A lossless `From<std::time::Instant>`
+  cannot exist when readings are backed by the browser clock, so an additive
+  design needs a different internal representation for `Monotonic`. It is
+  deferred to a later release; on `wasm32-unknown-unknown` the OS-clock
+  reads still panic (documented). The `From` impls always use the
+  `std::time` types, and a test pins that under every feature set.
 - Performance: the OS-clock paths are unchanged and within noise of raw
   `std::time`. `ManualClock::wall` went from ~0.8 ns to ~3.4 ns and
   `ManualClock::now` from ~0.78 ns to ~0.85 ns, the cost of the
@@ -161,7 +170,7 @@ was removed or changed signature. MSRV stays 1.85.
 - Docs: Windows' 100 ns wall-clock granularity (including in
   `ManualClock::wall`) and per-platform clock resolution are documented,
   and tests cover the bounded, non-accumulating `ManualClock` wall error.
-- Docs: `wasm32-unknown-unknown` panics without `web-time` are
+- Docs: `wasm32-unknown-unknown` panics (std has no clock there) are
   documented.
 - Docs: `docs/PERFORMANCE.md` no longer claims an enforced CI benchmark
   gate or identical assembly, and describes the Linux vDSO path correctly.

@@ -123,6 +123,9 @@ fn bench_monotonic_arith(c: &mut Criterion) {
     group.bench_function("Monotonic::checked_add", |b| {
         b.iter(|| black_box(black_box(reading).checked_add(black_box(ttl))));
     });
+    group.bench_function("Monotonic + Duration::MAX (saturating)", |b| {
+        b.iter(|| black_box(black_box(reading) + black_box(Duration::MAX)));
+    });
     group.bench_function("std Instant - Instant", |b| {
         b.iter(|| black_box(black_box(later_instant) - black_box(instant)));
     });
@@ -182,6 +185,9 @@ fn bench_helpers(c: &mut Criterion) {
     });
     group.bench_function("Deadline::remaining", |b| {
         b.iter(|| black_box(black_box(&deadline).remaining()));
+    });
+    group.bench_function("Deadline::after(Duration::MAX)", |b| {
+        b.iter(|| black_box(Deadline::after(black_box(Duration::MAX))));
     });
     group.bench_function("Stopwatch::elapsed", |b| {
         b.iter(|| black_box(black_box(&watch).elapsed()));

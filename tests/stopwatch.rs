@@ -70,6 +70,16 @@ fn test_stopwatch_with_auto_advance_counts_each_reading() {
 }
 
 #[test]
+fn test_stopwatch_over_dyn_clock_is_debug() {
+    let shared: std::sync::Arc<dyn clock_lib::Clock> = std::sync::Arc::new(ManualClock::new());
+    let watch = Stopwatch::start_with(shared);
+    let text = format!("{watch:?}");
+    assert!(text.starts_with("Stopwatch { clock: "));
+    assert!(text.contains("started_at: Monotonic("));
+    assert!(text.contains("lap_started_at: Monotonic("));
+}
+
+#[test]
 fn test_stopwatch_is_copy_with_copy_clock() {
     let clock = ManualClock::new();
     let a = Stopwatch::start_with(&clock);
