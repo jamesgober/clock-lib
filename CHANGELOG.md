@@ -19,6 +19,173 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.0] - 2026-10-13
+
+Fixes the `ManualClock::advance` overflow wrap and makes the mock clock and
+the reading types usable for real-world code: conversions, deadline
+arithmetic, a fixed-start and NTP-step-capable `ManualClock`,
+`Clock::elapsed`, `Deadline`/`Stopwatch`, RFC 3339 formatting, and opt-in
+`serde` and `web-time` features. Every change is additive; no public item
+was removed or changed signature. MSRV stays 1.85.
+
+### Added
+
+- **`Monotonic` deadline arithmetic.** `checked_add`, `checked_sub`,
+  `saturating_add`, `saturating_sub`, and the `+`, `-`, `+=`, `-=`
+  operators with `Duration`, plus `Monotonic - Monotonic -> Duration`.
+  Unlike `std::time::Instant`, none of them panic: operators saturate at
+  the platform's representable range, so `now + Duration::MAX` is a valid
+  "never" deadline.
+- **Conversions.** `From<Instant> for Monotonic`, `From<Monotonic> for
+  Instant`, `From<SystemTime> for Wall`, `From<Wall> for SystemTime`. The
+  `Clock` trait can now be implemented from any time source, and readings
+  can be handed to std/tokio APIs that take `Instant` or `SystemTime`.
+- **`Wall` constructors and arithmetic.** `Wall::UNIX_EPOCH`,
+  `Wall::from_unix_seconds` / `from_unix_millis` / `from_unix_nanos`
+  (returning `Option`; they accept the same types the accessors return),
+  `Wall::checked_add`, `Wall::checked_sub`.
+- **Signed Unix accessors.** `Wall::unix_seconds_signed` (`i64`),
+  `unix_millis_signed` and `unix_nanos_signed` (`i128`), rounding toward
+  negative infinity, so pre-epoch readings are no longer indistinguishable
+  from the epoch.
+- **RFC 3339 formatting.** `impl Display for Wall`: UTC, no dependencies,
+  no allocation; `{:.N}` selects fractional digits (truncated), and width,
+  fill and alignment are honoured.
+- **`Clock::elapsed(&self, since)`**, a provided method that measures with
+  the injected clock. The `&C`, `Box<C>` and `Arc<C>` impls forward it.
+- **`impl Clock for Box<C>`** (`C: Clock + ?Sized`), so `Box<dyn Clock>`
+  satisfies `C: Clock` bounds.
+- **`ManualClock` control surface.** `with_start(Wall)` for reproducible
+  wall timestamps; inherent `now()` / `wall()` (no trait import needed);
+  `advance_to(offset)` (forward-only absolute set); `step_wall_forward`,
+  `step_wall_back` and `set_wall` to move wall time without moving
+  monotonic time (simulated NTP steps); `set_auto_advance` /
+  `auto_advance` to advance the clock on every reading.
+- **`Deadline<C = SystemClock>`**: `after`, `after_with`, `at`,
+  `expires_at`, `is_expired`, `remaining`, `clock`.
+- **`Stopwatch<C = SystemClock>`**: `start`, `start_with`, `elapsed`,
+  `lap`, `restart`, `started_at`, `clock`.
+- **Feature `serde`** (off by default): `Serialize` / `Deserialize` for
+  `Wall`, in exactly the format serde uses for `std::time::SystemTime`, so
+  the two are wire-compatible. New optional dependency: `serde` 1.0 with
+  only its `std` feature (no derive macros). Justification: the de-facto
+  serialization framework, mature and maintained, MSRV 1.56, and
+  timestamps routinely end up in logs, events and database rows.
+- **Feature `web-time`** (off by default): on `wasm32-unknown-unknown`,
+  where `std::time` panics, readings come from the `web-time` crate
+  (`performance.now()` / `Date.now()`). New optional dependency:
+  `web-time` 1.1, declared only for `wasm32-unknown-unknown`, so enabling
+  the feature on any other target pulls in nothing. Justification: the
+  standard drop-in for browser time (94M recent downloads), MSRV 1.60, and
+  without it every Tier-1 call panics in the browser.
+- **Tests.** Unit tests in every module; new integration suites for
+  `ManualClock`, `Deadline`, `Stopwatch`, concurrency (contended
+  `advance`, saturation, auto-advance uniqueness, wall steps), property
+  tests (proptest: offset arithmetic, accessor consistency, signed
+  rounding, RFC 3339 against a naive reference over the years 1601–9999,
+  `Monotonic` arithmetic), `serde` parity with `SystemTime`, and a
+  `--no-default-features` test. Loom models for every lock-free
+  `ManualClock` path. README and `docs/API.md` are compiled as doctests.
+  New dev-dependencies: `proptest` 1 (std only), `serde_json` 1, and
+  `loom` 0.7 (only under `--cfg loom`).
+- **Benchmarks** for deadline arithmetic, `Deadline` / `Stopwatch`,
+  RFC 3339 formatting, the signed accessors, the new `ManualClock` paths,
+  and `Box<dyn Clock>`.
+- **CI**: format; clippy and tests with all, default and no default
+  features on Linux, macOS and Windows for both stable and 1.85.0; beta
+  (allowed to fail); a docs.rs build on nightly with `--cfg docsrs`;
+  `wasm32-unknown-unknown` with `web-time` and `serde` on stable and 1.85;
+  a bare-metal `no_std` build; loom; cargo-semver-checks; audit; deny.
+  `.github/dependabot.yml` for Cargo and GitHub Actions.
+
+### Changed
+
+- `Monotonic::duration_since` is now implemented as
+  `saturating_duration_since` instead of delegating to
+  `Instant::duration_since`. The result is identical on every supported
+  toolchain (std saturates since 1.60); the difference is that a future
+  std change back to panicking can no longer reach users.
+- `ManualClock` readings saturate at the platform's representable range
+  instead of panicking (the 1.0 docs listed a theoretical panic).
+- Performance: the OS-clock paths are unchanged and within noise of raw
+  `std::time`. `ManualClock::wall` went from ~0.8 ns to ~3.4 ns and
+  `ManualClock::now` from ~0.78 ns to ~0.85 ns, the cost of the
+  wall-only adjustment and auto-advance checks (one extra relaxed load
+  each). The saturating `advance` costs the same as the old `fetch_add`.
+  Numbers and methodology are in `docs/PERFORMANCE.md`.
+- `ManualClock` lives in its own module (`src/manual.rs`); its public path
+  is unchanged. Its `Debug` output now prints the offsets as integers and
+  includes the wall-skew and auto-advance fields.
+- The `Clock`, free-function and `Monotonic::elapsed` docs now state which
+  calls read the operating-system clock, and that readings from an
+  injected clock must be measured with `Clock::elapsed`.
+- Removed the `no-std` crates.io category and corrected the `no_std`
+  wording everywhere: without `std` the crate compiles but exposes only
+  `VERSION`.
+- The published package now uses an `include` list: source, tests,
+  benches, `README.md`, `CHANGELOG.md`, `docs/API.md` and the licenses.
+  Repository tooling (REPS, CI and lint configs, release notes) is no
+  longer shipped.
+- Benchmarks: criterion 0.5 → 0.7 (the newest line that supports MSRV
+  1.85) with default features off, and `std::hint::black_box` instead of
+  `criterion::black_box`. Bench inputs now pass through `black_box`, so
+  loop-invariant conversions are no longer hoisted out of the measurement.
+- `rust-toolchain.toml` keeps the REPS-mandated 1.85.0 pin for local
+  builds, but every CI job now sets `RUSTUP_TOOLCHAIN`, so the stable legs
+  run real stable instead of silently running 1.85.0.
+- CI actions: `actions/checkout@v7`; `dtolnay/rust-toolchain` pinned to a
+  commit SHA instead of `@master`; workflow-level
+  `permissions: contents: read`; a concurrency group.
+- `rustfmt.toml` drops the nightly-only `group_imports` and
+  `imports_granularity` keys that stable rustfmt ignored with warnings.
+- `deny.toml` no longer warns about allowlisted licenses that are absent
+  from the graph.
+- Removed the obsolete `#![doc(html_root_url)]` and the redundant `[lib]`
+  section of `Cargo.toml`.
+
+### Fixed
+
+- **`ManualClock::advance` wrapped on cumulative overflow.** It used
+  `AtomicU64::fetch_add`, so a large total (for example
+  `advance(Duration::MAX)` twice) wrapped the offset and moved `now()` and
+  `wall()` backwards, breaking the monotonic contract and contradicting
+  the documented saturation. It is now a lock-free compare-and-swap loop
+  with `saturating_add`.
+- Docs: `Monotonic::duration_since` was documented to panic when the
+  arguments are reversed; it saturates to zero.
+- Docs: daylight-saving time was listed as a cause of wall-clock jumps.
+  Unix time is UTC; the real causes (NTP steps, manual changes, VM
+  suspend/migration, leap-second handling) are now listed.
+- Docs: `ManualClock` was described as "fully deterministic". Deltas are;
+  absolute wall readings now are too, with `with_start`.
+- Docs: Windows' 100 ns wall-clock granularity (including in
+  `ManualClock::wall`) and per-platform clock resolution are documented,
+  and tests cover the bounded, non-accumulating `ManualClock` wall error.
+- Docs: `wasm32-unknown-unknown` panics without `web-time` are
+  documented.
+- Docs: `docs/PERFORMANCE.md` no longer claims an enforced CI benchmark
+  gate or identical assembly, and describes the Linux vDSO path correctly.
+- `cargo test --no-default-features` did not compile. Every test file is
+  now gated on the features it needs, and CI runs that configuration.
+- `docs/API.md` signature blocks are marked `ignore`, and its examples no
+  longer show `# ` hidden lines on GitHub.
+- CHANGELOG comparison links pointed at `v0.1.0` and `v0.2.0` tags that
+  were never created; they now point at the corresponding commits.
+
+### Security
+
+- Recorded: the dev-only lockfile refresh for RUSTSEC-2026-0204
+  (`crossbeam-epoch` 0.9.18 → 0.9.21, reached only through criterion)
+  landed after 1.0.0. With criterion's default features now off,
+  `crossbeam-*` is no longer in the dependency graph at all. Downstream
+  users were never affected: the crate has no runtime dependencies by
+  default, and a library's lockfile is not used by dependents.
+- CI follows least privilege (`permissions: contents: read`), pins the
+  toolchain action to a commit, and dependabot now watches Cargo and
+  GitHub Actions dependencies.
+
+---
+
 ## [1.0.0] - 2026-05-21
 
 The stable release. The public API is now committed for the 1.x line: no
@@ -191,11 +358,12 @@ The 1.0 surface is the union of every prior 0.x addition:
 - CI for Linux/macOS/Windows on stable and MSRV.
 - Project documentation framework.
 
-[Unreleased]: https://github.com/jamesgober/clock-lib/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/jamesgober/clock-lib/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/jamesgober/clock-lib/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/jamesgober/clock-lib/compare/v0.5.0...v1.0.0
 [0.5.0]: https://github.com/jamesgober/clock-lib/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/jamesgober/clock-lib/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/jamesgober/clock-lib/compare/v0.2.1...v0.3.0
-[0.2.1]: https://github.com/jamesgober/clock-lib/compare/v0.2.0...v0.2.1
-[0.2.0]: https://github.com/jamesgober/clock-lib/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/jamesgober/clock-lib/releases/tag/v0.1.0
+[0.2.1]: https://github.com/jamesgober/clock-lib/compare/8a20c338c23d3671b72fc5cd5f1bbb3d97758df4...v0.2.1
+[0.2.0]: https://github.com/jamesgober/clock-lib/compare/10a92d34e13afcd3d5faea194090d74803f78667...8a20c338c23d3671b72fc5cd5f1bbb3d97758df4
+[0.1.0]: https://github.com/jamesgober/clock-lib/commit/10a92d34e13afcd3d5faea194090d74803f78667
