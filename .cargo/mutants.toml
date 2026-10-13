@@ -1,0 +1,17 @@
+# cargo-mutants configuration. See docs/GUIDELINES.md (Local Gate).
+
+# `#![deny(warnings)]` is mandated in source by REPS. Without capping lints,
+# many mutants fail to compile on unused-variable warnings and are reported
+# as "unviable" instead of being tested.
+cap_lints = true
+
+# The loom models only compile under `--cfg loom`; mutating them can never be
+# observed by the normal test run.
+exclude_re = ["loom_tests"]
+
+# Doctests are slow to build per mutant; the unit and integration tests cover
+# every doctested behaviour.
+additional_cargo_test_args = ["--lib", "--tests"]
+
+# Exercise the optional `serde` code as well.
+all_features = true

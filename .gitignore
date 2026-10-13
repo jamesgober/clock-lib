@@ -42,3 +42,5 @@ Homestead.json
 ._*
 
 # Cargo.lock is committed per REPS Reproducibility — see deny.toml/CI for policy.
+# cargo-mutants output
+/mutants.out*/

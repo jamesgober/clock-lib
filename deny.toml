@@ -31,6 +31,9 @@ allow = [
 ]
 confidence-threshold = 0.93
 exceptions = []
+# The allowlist is the portfolio-wide policy; not every license on it appears
+# in this crate's (small) graph, and that is not a problem worth a warning.
+unused-allowed-license = "allow"
 
 [bans]
 multiple-versions = "warn"

@@ -1,3 +1,10 @@
+# Pinned per REPS (Reproducibility & Build Determinism): local builds use the
+# MSRV toolchain, so anything that compiles here compiles for every supported
+# user. CI does NOT inherit this pin for its stable/beta legs: each job sets
+# RUSTUP_TOOLCHAIN, which takes precedence over this file, so the "stable"
+# jobs really run current stable and the MSRV job runs 1.85.0.
+# Use `cargo +stable <cmd>` locally to check against newer toolchains
+# (cargo-semver-checks needs rustc >= 1.91).
 [toolchain]
 channel = "1.85.0"
 components = ["rustfmt", "clippy"]

@@ -1,0 +1,18 @@
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    ignore:
+      # criterion 0.8 requires Rust 1.86; the crate's MSRV is 1.85 and the
+      # MSRV CI leg builds the benches.
+      - dependency-name: criterion
+        versions: [">=0.8"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
