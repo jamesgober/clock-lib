@@ -6,24 +6,49 @@ rust-version = "1.85"
 readme = "README.md"
 license = "Apache-2.0 OR MIT"
 authors = ["James Gober <me@jamesgober.com>"]
-description = "Monotonic and wall-clock time readings for Rust, with a mockable clock for deterministic testing. Simple Tier-1 API, zero dependencies, no unsafe."
+description = "Monotonic and wall-clock time readings for Rust, with a mockable clock for deterministic testing. Simple Tier-1 API, zero default dependencies, no unsafe."
 keywords = ["time", "clock", "monotonic", "timekeeping", "mock"]
-categories = ["date-and-time", "development-tools::testing", "no-std"]
+categories = ["date-and-time", "development-tools::testing"]
 documentation = "https://docs.rs/clock-lib"
 repository = "https://github.com/jamesgober/clock-lib"
 homepage = "https://github.com/jamesgober/clock-lib"
+# Ship the library, its user-facing docs and its tests; keep repo tooling
+# (REPS, CI, lint configs, release notes) out of the published crate.
+include = [
+    "/src/**/*.rs",
+    "/tests/**/*.rs",
+    "/benches/**/*.rs",
+    "/docs/API.md",
+    "/README.md",
+    "/CHANGELOG.md",
+    "/LICENSE-APACHE",
+    "/LICENSE-MIT",
+]
 
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
-[lib]
-name = "clock_lib"
-path = "src/lib.rs"
-
 [features]
 default = ["std"]
+# Every reading API. Without it only `VERSION` is exposed.
 std = []
+# `Serialize`/`Deserialize` for `Wall`, wire-compatible with `SystemTime`.
+serde = ["std", "dep:serde"]
+# Browser clock on wasm32-unknown-unknown, where std has none. No-op elsewhere.
+web-time = ["std", "dep:web-time"]
+
+[dependencies]
+# Optional (feature `serde`). The de-facto serialization framework; mature,
+# maintained, no unsafe in the parts used here, MSRV well below ours. Only
+# the `std` feature is needed (for the `SystemTime` impls); no derive macros.
+serde = { version = "1.0.200", optional = true, default-features = false, features = ["std"] }
+
+# Optional (feature `web-time`), and only on wasm32-unknown-unknown, where
+# `std::time::Instant::now()` panics. web-time re-exports `std::time` on every
+# other target, so enabling the feature elsewhere pulls in nothing.
+[target.'cfg(all(target_family = "wasm", target_os = "unknown"))'.dependencies]
+web-time = { version = "1.1.0", optional = true }
 
 [dev-dependencies]
 # Benchmark harness (dev-only, never built by downstream users). 0.7 is the
@@ -31,11 +56,27 @@ std = []
 # off: rayon and plotters are not needed for text reports, and dropping them
 # removes the crossbeam/plotters/wasm-bindgen subtree from the dev graph.
 criterion = { version = "0.7", default-features = false, features = ["cargo_bench_support"] }
+# Property tests required by REPS. `std` only: no fork/timeout subprocess
+# machinery.
+proptest = { version = "1.6", default-features = false, features = ["std"] }
+# Round-trip tests and doc examples for the `serde` feature.
+serde_json = "1.0"
+
+# Model checker for the lock-free `ManualClock` paths. Only resolved for
+# `RUSTFLAGS="--cfg loom" cargo test --lib`.
+[target.'cfg(loom)'.dev-dependencies]
+loom = "0.7"
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(loom)"] }
 
 [[bench]]
 name = "clock_bench"
 harness = false
+required-features = ["std"]
 
+# Used by `cargo bench` (the bench profile inherits from release). Has no
+# effect on downstream builds.
 [profile.release]
 opt-level = 3
 lto = "fat"

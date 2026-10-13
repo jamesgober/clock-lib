@@ -1,46 +1,76 @@
 //! Mockable clock abstraction.
 //!
-//! The [`Clock`] trait lets time-driven code &mdash; rate limiters, TTL caches,
-//! timeouts, retry backoff &mdash; depend on an injected source of time instead
-//! of calling the OS directly. Production code uses [`SystemClock`], which
-//! simply forwards to the OS. Tests use [`ManualClock`], which advances on
-//! demand so timing-driven behavior can be exercised deterministically
-//! without ever calling [`std::thread::sleep`].
+//! The [`Clock`] trait lets time-driven code (rate limiters, TTL caches,
+//! timeouts, retry backoff) depend on an injected source of time instead of
+//! calling the OS directly. Production code uses [`SystemClock`], which
+//! forwards to the OS. Tests use [`ManualClock`](crate::ManualClock), which
+//! advances on demand, so timing-driven behaviour can be exercised
+//! deterministically without ever calling [`std::thread::sleep`].
 
-#[cfg(feature = "std")]
-use core::sync::atomic::{AtomicU64, Ordering};
-#[cfg(feature = "std")]
 use core::time::Duration;
-#[cfg(feature = "std")]
 use std::sync::Arc;
-#[cfg(feature = "std")]
-use std::time::{Instant, SystemTime};
 
-#[cfg(feature = "std")]
 use crate::{Monotonic, Wall};
 
 /// A source of time.
 ///
-/// `Clock` exposes both kinds of reading this crate keeps separate:
-/// a monotonic reading via [`Clock::now`] and a wall-clock reading via
+/// `Clock` exposes both kinds of reading this crate keeps separate: a
+/// monotonic reading via [`Clock::now`] and a wall-clock reading via
 /// [`Clock::wall`]. Implementations must be safe to share across threads.
 ///
-/// In production, take a `Clock` (or `&dyn Clock`, or `Arc<dyn Clock>`) as
-/// a dependency and use [`SystemClock`] at the top of your call graph. In
-/// tests, substitute [`ManualClock`] and drive time forward by calling
-/// [`ManualClock::advance`].
+/// In production, take a `Clock` (generic `C: Clock`, `&dyn Clock`,
+/// `Box<dyn Clock>` or `Arc<dyn Clock>`) as a dependency and pass
+/// [`SystemClock`] at the top of your call graph. In tests, pass a
+/// [`ManualClock`](crate::ManualClock) and drive time forward by calling
+/// [`advance`](crate::ManualClock::advance).
 ///
-/// `Clock` is also implemented for `Arc<C>` and `&C` where `C: Clock`,
-/// so the same value can be shared and reused freely.
+/// `Clock` is implemented for `&C`, `Box<C>` and `Arc<C>` where
+/// `C: Clock + ?Sized`, so a clock can be borrowed, boxed or shared and
+/// still be passed to any `C: Clock` parameter.
+///
+/// # Measuring elapsed time through the clock
+///
+/// Use [`Clock::elapsed`] for readings that came from a clock. The free
+/// function [`elapsed`](crate::elapsed) and [`Monotonic::elapsed`] always
+/// read the operating system clock, so on a reading taken from a
+/// `ManualClock` they would measure real time and ignore every `advance`.
+///
+/// # Implementing `Clock`
+///
+/// Implement [`now`](Clock::now) and [`wall`](Clock::wall). Build the
+/// readings from your own source with `Monotonic::from(Instant)` and
+/// `Wall::from(SystemTime)`. `now` must never return a reading earlier than
+/// one it returned before.
+///
+/// ```
+/// use clock_lib::{Clock, Monotonic, Wall};
+/// use std::time::{Duration, Instant, SystemTime};
+///
+/// /// A clock that runs a fixed amount ahead of the system clock.
+/// struct Ahead(Duration);
+///
+/// impl Clock for Ahead {
+///     fn now(&self) -> Monotonic {
+///         Monotonic::from(Instant::now()) + self.0
+///     }
+///     fn wall(&self) -> Wall {
+///         Wall::from(SystemTime::now() + self.0)
+///     }
+/// }
+///
+/// let clock = Ahead(Duration::from_secs(10));
+/// let start = clock.now();
+/// assert!(clock.elapsed(start) < Duration::from_secs(10));
+/// ```
 ///
 /// # Examples
 ///
 /// ```
-/// use clock_lib::{Clock, ManualClock, SystemClock};
+/// use clock_lib::{Clock, ManualClock, Monotonic, SystemClock};
 /// use std::time::Duration;
 ///
-/// fn took_at_least<C: Clock>(clock: &C, start: clock_lib::Monotonic, target: Duration) -> bool {
-///     clock.now().duration_since(start) >= target
+/// fn took_at_least<C: Clock>(clock: &C, start: Monotonic, target: Duration) -> bool {
+///     clock.elapsed(start) >= target
 /// }
 ///
 /// // Production
@@ -48,28 +78,56 @@ use crate::{Monotonic, Wall};
 /// let start = sys.now();
 /// assert!(!took_at_least(&sys, start, Duration::from_secs(60 * 60)));
 ///
-/// // Test — no sleep, fully deterministic
+/// // Test: no sleep, exact durations
 /// let test = ManualClock::new();
 /// let start = test.now();
 /// test.advance(Duration::from_secs(60 * 60));
 /// assert!(took_at_least(&test, start, Duration::from_secs(60 * 60)));
 /// ```
-#[cfg(feature = "std")]
 #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
 pub trait Clock: Send + Sync {
     /// Returns the current monotonic reading.
+    ///
+    /// Successive calls on the same clock must never go backwards.
     fn now(&self) -> Monotonic;
 
     /// Returns the current wall-clock reading.
+    ///
+    /// Wall-clock readings may jump in either direction.
     fn wall(&self) -> Wall;
+
+    /// Returns the time elapsed between `since` and this clock's current
+    /// monotonic reading, saturating at zero if `since` is in the future.
+    ///
+    /// This is the injected-clock counterpart to the free function
+    /// [`elapsed`](crate::elapsed): it reads *this* clock, so on a
+    /// [`ManualClock`](crate::ManualClock) it reflects every `advance`.
+    /// The provided implementation is
+    /// `self.now().saturating_duration_since(since)`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use clock_lib::{Clock, ManualClock};
+    /// use std::time::Duration;
+    ///
+    /// let clock = ManualClock::new();
+    /// let start = clock.now();
+    /// clock.advance(Duration::from_secs(3_600));
+    /// assert_eq!(clock.elapsed(start), Duration::from_secs(3_600));
+    /// ```
+    #[inline]
+    fn elapsed(&self, since: Monotonic) -> Duration {
+        self.now().saturating_duration_since(since)
+    }
 }
 
 /// A clock backed by the operating system.
 ///
 /// `SystemClock` forwards [`Clock::now`] to [`Monotonic::now`] and
 /// [`Clock::wall`] to [`Wall::now`]. It is zero-sized, `Copy`, and the
-/// constructor is `const`, so it imposes no runtime cost over calling the
-/// free functions directly.
+/// constructor is `const`, so it costs nothing over calling the free
+/// functions directly.
 ///
 /// # Examples
 ///
@@ -77,17 +135,24 @@ pub trait Clock: Send + Sync {
 /// use clock_lib::{Clock, SystemClock};
 ///
 /// const CLOCK: SystemClock = SystemClock::new();
-/// let t = CLOCK.now();
-/// # let _ = t;
+/// let start = CLOCK.now();
+/// let _took = CLOCK.elapsed(start);
 /// ```
-#[cfg(feature = "std")]
 #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
 #[derive(Debug, Default, Copy, Clone)]
 pub struct SystemClock;
 
-#[cfg(feature = "std")]
 impl SystemClock {
     /// Constructs a new system clock.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use clock_lib::{Clock, SystemClock};
+    ///
+    /// let clock = SystemClock::new();
+    /// assert!(clock.wall().unix_seconds() > 0);
+    /// ```
     #[inline]
     #[must_use]
     pub const fn new() -> Self {
@@ -95,7 +160,6 @@ impl SystemClock {
     }
 }
 
-#[cfg(feature = "std")]
 impl Clock for SystemClock {
     #[inline]
     fn now(&self) -> Monotonic {
@@ -108,166 +172,40 @@ impl Clock for SystemClock {
     }
 }
 
-/// A clock under your control, for deterministic testing.
-///
-/// `ManualClock` captures the OS monotonic and wall-clock anchors at
-/// construction, then advances **only** when you call
-/// [`advance`](Self::advance). The clock never moves on its own, so tests
-/// against time-driven code become point-in-time deterministic.
-///
-/// `ManualClock` is `Send + Sync`. Wrap it in an [`Arc`] to share with the
-/// code under test; both the test driver and the production code can hold
-/// references to the same clock and observe consistent readings.
-///
-/// # Examples
-///
-/// ```
-/// use clock_lib::{Clock, ManualClock, Monotonic};
-/// use std::sync::Arc;
-/// use std::time::Duration;
-///
-/// // A "ttl expired?" check that can be driven without sleeping.
-/// fn expired<C: Clock>(clock: &C, stamp: Monotonic, ttl: Duration) -> bool {
-///     clock.now().duration_since(stamp) >= ttl
-/// }
-///
-/// let clock = Arc::new(ManualClock::new());
-/// let stamp = clock.now();
-///
-/// assert!(!expired(&*clock, stamp, Duration::from_secs(60)));
-///
-/// clock.advance(Duration::from_secs(60));
-/// assert!(expired(&*clock, stamp, Duration::from_secs(60)));
-/// ```
-#[cfg(feature = "std")]
-#[cfg_attr(docsrs, doc(cfg(feature = "std")))]
-#[derive(Debug)]
-pub struct ManualClock {
-    monotonic_anchor: Instant,
-    wall_anchor: SystemTime,
-    offset_nanos: AtomicU64,
-}
-
-#[cfg(feature = "std")]
-impl ManualClock {
-    /// Constructs a new manual clock anchored at the current OS time.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use clock_lib::ManualClock;
-    ///
-    /// let clock = ManualClock::new();
-    /// # let _ = clock;
-    /// ```
+impl<C: Clock + ?Sized> Clock for &C {
     #[inline]
-    #[must_use]
-    pub fn new() -> Self {
-        Self {
-            monotonic_anchor: Instant::now(),
-            wall_anchor: SystemTime::now(),
-            offset_nanos: AtomicU64::new(0),
-        }
-    }
-
-    /// Advances the clock forward by `by`.
-    ///
-    /// Successive calls accumulate. If the cumulative offset would exceed
-    /// [`u64::MAX`] nanoseconds (≈584 years), the offset saturates &mdash;
-    /// well outside any plausible test scenario.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use clock_lib::{Clock, ManualClock};
-    /// use std::time::Duration;
-    ///
-    /// let clock = ManualClock::new();
-    /// let a = clock.now();
-    /// clock.advance(Duration::from_secs(5));
-    /// let b = clock.now();
-    /// assert_eq!(b.duration_since(a), Duration::from_secs(5));
-    /// ```
-    #[inline]
-    pub fn advance(&self, by: Duration) {
-        let nanos = u64::try_from(by.as_nanos()).unwrap_or(u64::MAX);
-        // A compare-and-swap loop rather than `fetch_add`: `fetch_add` wraps
-        // on overflow, and a wrapped offset moves the clock backwards.
-        let mut current = self.offset_nanos.load(Ordering::Relaxed);
-        loop {
-            let next = current.saturating_add(nanos);
-            if next == current {
-                return;
-            }
-            match self.offset_nanos.compare_exchange_weak(
-                current,
-                next,
-                Ordering::Relaxed,
-                Ordering::Relaxed,
-            ) {
-                Ok(_) => return,
-                Err(actual) => current = actual,
-            }
-        }
-    }
-
-    /// Returns the cumulative offset that has been added to this clock
-    /// since it was constructed.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use clock_lib::ManualClock;
-    /// use std::time::Duration;
-    ///
-    /// let clock = ManualClock::new();
-    /// clock.advance(Duration::from_secs(1));
-    /// clock.advance(Duration::from_secs(2));
-    /// assert_eq!(clock.offset(), Duration::from_secs(3));
-    /// ```
-    #[inline]
-    #[must_use]
-    pub fn offset(&self) -> Duration {
-        Duration::from_nanos(self.offset_nanos.load(Ordering::Relaxed))
-    }
-}
-
-#[cfg(feature = "std")]
-impl Default for ManualClock {
-    #[inline]
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-#[cfg(feature = "std")]
-impl Clock for ManualClock {
-    /// Returns the monotonic anchor plus the accumulated offset.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the anchor plus offset is not representable as an
-    /// [`Instant`] on the current platform. This requires a cumulative
-    /// offset measured in centuries and never occurs in realistic tests.
     fn now(&self) -> Monotonic {
-        let offset = Duration::from_nanos(self.offset_nanos.load(Ordering::Relaxed));
-        Monotonic(self.monotonic_anchor + offset)
+        (**self).now()
     }
 
-    /// Returns the wall-clock anchor plus the accumulated offset.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the anchor plus offset is not representable as a
-    /// [`SystemTime`] on the current platform. This requires a cumulative
-    /// offset measured in centuries and never occurs in realistic tests.
+    #[inline]
     fn wall(&self) -> Wall {
-        let offset = Duration::from_nanos(self.offset_nanos.load(Ordering::Relaxed));
-        Wall(self.wall_anchor + offset)
+        (**self).wall()
+    }
+
+    #[inline]
+    fn elapsed(&self, since: Monotonic) -> Duration {
+        (**self).elapsed(since)
     }
 }
 
-#[cfg(feature = "std")]
+impl<C: Clock + ?Sized> Clock for Box<C> {
+    #[inline]
+    fn now(&self) -> Monotonic {
+        (**self).now()
+    }
+
+    #[inline]
+    fn wall(&self) -> Wall {
+        (**self).wall()
+    }
+
+    #[inline]
+    fn elapsed(&self, since: Monotonic) -> Duration {
+        (**self).elapsed(since)
+    }
+}
+
 impl<C: Clock + ?Sized> Clock for Arc<C> {
     #[inline]
     fn now(&self) -> Monotonic {
@@ -278,17 +216,60 @@ impl<C: Clock + ?Sized> Clock for Arc<C> {
     fn wall(&self) -> Wall {
         (**self).wall()
     }
+
+    #[inline]
+    fn elapsed(&self, since: Monotonic) -> Duration {
+        (**self).elapsed(since)
+    }
 }
 
-#[cfg(feature = "std")]
-impl<C: Clock + ?Sized> Clock for &C {
-    #[inline]
-    fn now(&self) -> Monotonic {
-        (**self).now()
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A clock that overrides `elapsed`, to prove the forwarding impls
+    /// dispatch to the inner implementation rather than the default.
+    struct FixedElapsed;
+
+    impl Clock for FixedElapsed {
+        fn now(&self) -> Monotonic {
+            Monotonic::now()
+        }
+        fn wall(&self) -> Wall {
+            Wall::UNIX_EPOCH
+        }
+        fn elapsed(&self, _since: Monotonic) -> Duration {
+            Duration::from_secs(42)
+        }
     }
 
-    #[inline]
-    fn wall(&self) -> Wall {
-        (**self).wall()
+    fn elapsed_via<C: Clock>(clock: &C) -> Duration {
+        clock.elapsed(Monotonic::now())
+    }
+
+    #[test]
+    fn test_forwarding_impls_forward_overridden_elapsed() {
+        let expected = Duration::from_secs(42);
+        assert_eq!(elapsed_via(&FixedElapsed), expected);
+        assert_eq!(elapsed_via(&&FixedElapsed), expected);
+        assert_eq!(elapsed_via(&Box::new(FixedElapsed)), expected);
+        assert_eq!(elapsed_via(&Arc::new(FixedElapsed)), expected);
+        let boxed: Box<dyn Clock> = Box::new(FixedElapsed);
+        assert_eq!(elapsed_via(&boxed), expected);
+    }
+
+    #[test]
+    fn test_forwarding_impls_forward_wall() {
+        let boxed = Box::new(FixedElapsed);
+        let shared = Arc::new(FixedElapsed);
+        assert_eq!(Clock::wall(&&FixedElapsed), Wall::UNIX_EPOCH);
+        assert_eq!(Clock::wall(&boxed), Wall::UNIX_EPOCH);
+        assert_eq!(Clock::wall(&shared), Wall::UNIX_EPOCH);
+    }
+
+    #[test]
+    fn test_default_elapsed_saturates_for_future_reading() {
+        let future = Monotonic::now() + Duration::from_secs(60);
+        assert_eq!(SystemClock.elapsed(future), Duration::ZERO);
     }
 }
