@@ -99,9 +99,10 @@
 //!
 //! On `wasm32-unknown-unknown` the standard library has no clock:
 //! `std::time::Instant::now()` and `SystemTime::now()` panic, so every call
-//! that reads the operating system clock panics there. `ManualClock`, the
-//! conversions and all arithmetic still work. Browser time support is not
-//! part of 1.1 (see the CHANGELOG).
+//! that reads the operating system clock panics there. That includes
+//! constructing a [`ManualClock`], which anchors itself to the OS clock.
+//! Conversions and arithmetic on readings you already hold still work.
+//! Browser time support is not part of 1.1 (see the CHANGELOG).
 //!
 //! # Feature flags
 //!

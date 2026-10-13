@@ -99,7 +99,7 @@ clock-lib = { version = "1.1", default-features = false }
 
 Back-to-back monotonic readings are often equal, especially on Windows. That is correct for a non-decreasing clock. On Windows, `Wall::unix_nanos()` is always a multiple of 100.
 
-On `wasm32-unknown-unknown` the standard library has no clock: `std::time::Instant::now()` and `SystemTime::now()` panic, so every function that reads the OS clock panics there. `ManualClock` readings, conversions and arithmetic still work. Browser time support is not part of 1.1.
+On `wasm32-unknown-unknown` the standard library has no clock: `std::time::Instant::now()` and `SystemTime::now()` panic, so every function that reads the OS clock panics there. That includes constructing a `ManualClock`, which anchors itself to the OS clock. Conversions and arithmetic on readings you already hold still work. Browser time support is not part of 1.1.
 
 <br>
 
