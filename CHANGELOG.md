@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- CI builds and tests a downstream crate under `RUSTFLAGS="--cfg loom"`,
+  with a `ManualClock` used both inside and outside a `loom::model`, so a
+  regression of the fix below fails the build.
+
 ### Fixed
 
 - **Builds under a downstream `--cfg loom`.** 1.1.0 switched its atomics to
