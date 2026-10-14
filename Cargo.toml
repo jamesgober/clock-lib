@@ -54,13 +54,17 @@ proptest = { version = "1.6", default-features = false, features = ["std"] }
 # Round-trip tests and doc examples for the `serde` feature.
 serde_json = "1.0"
 
-# Model checker for the lock-free `ManualClock` paths. Only resolved for
-# `RUSTFLAGS="--cfg loom" cargo test --lib`.
-[target.'cfg(loom)'.dev-dependencies]
+# Model checker for the lock-free `ManualClock` paths, resolved only under
+# `RUSTFLAGS="--cfg clock_lib_loom"`. The cfg is crate-specific on purpose: a
+# downstream crate that runs its own loom models sets the global `--cfg loom`,
+# which reaches every crate in its graph, and must get clock-lib's normal
+# atomics. It is a regular dependency, not a dev-dependency, because the
+# library code in `src/sync.rs` uses it whenever the cfg is set.
+[target.'cfg(clock_lib_loom)'.dependencies]
 loom = "0.7"
 
 [lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ["cfg(loom)"] }
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(clock_lib_loom)"] }
 
 [[bench]]
 name = "clock_bench"

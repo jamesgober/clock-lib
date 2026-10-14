@@ -15,6 +15,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Builds under a downstream `--cfg loom`.** 1.1.0 switched its atomics to
+  `loom` under `cfg(loom)` but declared `loom` only as a dev-dependency, so
+  any crate that model-checks its own code with
+  `RUSTFLAGS="--cfg loom"` (which applies to every crate in the build)
+  failed to compile `clock-lib` with "cannot find module or crate `loom`".
+  The model checks now use the crate-specific `clock_lib_loom` cfg, and
+  `loom` is a regular dependency under that cfg, so the gated code always
+  has it. Under a downstream `--cfg loom`, `clock-lib` builds exactly as it
+  does normally, and `ManualClock` keeps working outside a `loom::model`,
+  as in 1.0.0.
+
 ### Security
 
 ---

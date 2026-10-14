@@ -552,7 +552,7 @@ fn saturating_i128(v: u128) -> i128 {
     i128::try_from(v).unwrap_or(i128::MAX)
 }
 
-#[cfg(all(test, not(loom)))]
+#[cfg(all(test, not(clock_lib_loom)))]
 mod tests {
     use super::*;
     use crate::platform::UNIX_EPOCH;
@@ -638,8 +638,8 @@ mod tests {
 }
 
 /// Model-checked concurrency tests. Run with
-/// `RUSTFLAGS="--cfg loom" cargo test --lib --release`.
-#[cfg(all(test, loom))]
+/// `RUSTFLAGS="--cfg clock_lib_loom" cargo test --lib --release loom`.
+#[cfg(all(test, clock_lib_loom))]
 mod loom_tests {
     use super::*;
     use loom::sync::Arc;
