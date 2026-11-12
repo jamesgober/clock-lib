@@ -53,12 +53,14 @@ cargo test --no-default-features
 RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all-features
 cargo build --no-default-features --target thumbv7em-none-eabihf
 cargo +stable clippy --target wasm32-unknown-unknown --all-features -- -D warnings
-RUSTFLAGS="--cfg loom" cargo test --lib --release loom
+RUSTFLAGS="--cfg clock_lib_loom" cargo test --lib --release loom
 cargo audit
 cargo deny check
 cargo +stable semver-checks          # needs rustc >= 1.91
 cargo publish --dry-run
 ```
+
+**Loom.** The model checks are gated on `clock_lib_loom`, not the conventional `loom` cfg. `RUSTFLAGS="--cfg loom"` applies to every crate in a build, so a downstream crate model-checking its own code would otherwise switch `ManualClock` to loom atomics it never asked for (1.1.0 failed to compile there instead). Under a downstream `--cfg loom`, `clock-lib` builds exactly as it does normally. `clock_lib_loom` only affects this crate's own unit tests (`cargo test --lib`); a library build with it set still uses `core` atomics, so `loom` stays a dev-dependency.
 
 **Mutation testing.** The crate root carries `#![deny(warnings)]` (REPS). Under cargo-mutants that turns many mutants into compile errors ("unviable") instead of testing them, so `.cargo/mutants.toml` sets `cap_lints = true` (plus `all_features`, and excludes the loom-only module):
 

@@ -146,7 +146,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       RUSTUP_TOOLCHAIN: stable
-      RUSTFLAGS: "--cfg loom -D warnings"
+      RUSTFLAGS: "--cfg clock_lib_loom -D warnings"
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master, 2026-10-09
@@ -154,6 +154,73 @@ jobs:
           toolchain: stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo test --lib --release loom
+
+  # A crate that model-checks its own code sets `--cfg loom` for the whole
+  # build, clock-lib included. 1.1.0 failed to compile there. This builds a
+  # throwaway downstream crate the way rate-net and better-bucket do and runs
+  # its loom test, with a ManualClock both inside and outside the model.
+  downstream-loom:
+    name: Downstream build under --cfg loom
+    runs-on: ubuntu-latest
+    env:
+      RUSTUP_TOOLCHAIN: stable
+      RUSTFLAGS: "--cfg loom -D warnings"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master, 2026-10-09
+        with:
+          toolchain: stable
+      - name: Create the downstream crate
+        run: |
+          mkdir -p "$RUNNER_TEMP/downstream/src" "$RUNNER_TEMP/downstream/tests"
+          cd "$RUNNER_TEMP/downstream"
+          cat > Cargo.toml <<EOF
+          [package]
+          name = "downstream"
+          version = "0.0.0"
+          edition = "2024"
+          publish = false
+
+          [dependencies]
+          clock-lib = { path = "$GITHUB_WORKSPACE", default-features = false, features = ["std"] }
+
+          [target.'cfg(loom)'.dependencies]
+          loom = "0.7"
+
+          [lints.rust]
+          unexpected_cfgs = { level = "warn", check-cfg = ["cfg(loom)"] }
+          EOF
+          echo '//! Empty library; the test drives clock-lib.' > src/lib.rs
+          cat > tests/loom.rs <<'EOF'
+          #![cfg(loom)]
+
+          use std::time::Duration;
+
+          use clock_lib::{Clock, ManualClock};
+
+          #[test]
+          fn manual_clock_inside_a_model() {
+              loom::model(|| {
+                  let clock = loom::sync::Arc::new(ManualClock::new());
+                  let other = loom::sync::Arc::clone(&clock);
+                  let start = clock.now();
+                  let handle = loom::thread::spawn(move || other.advance(Duration::from_secs(1)));
+                  handle.join().unwrap();
+                  assert_eq!(clock.elapsed(start), Duration::from_secs(1));
+              });
+          }
+
+          #[test]
+          fn manual_clock_outside_a_model() {
+              let clock = ManualClock::new();
+              let start = clock.now();
+              clock.advance(Duration::from_secs(1));
+              assert_eq!(clock.elapsed(start), Duration::from_secs(1));
+          }
+          EOF
+      - name: Test the downstream crate
+        working-directory: ${{ runner.temp }}/downstream
+        run: cargo test
 
   semver:
     name: SemVer check (vs crates.io)

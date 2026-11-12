@@ -8,6 +8,9 @@
 //!
 //! For calendar timestamps, use [`Wall`](crate::Wall) instead.
 
+use core::cmp::Ordering;
+use core::fmt;
+use core::hash::{Hash, Hasher};
 use core::ops::{Add, AddAssign, Sub, SubAssign};
 use core::time::Duration;
 
@@ -27,6 +30,22 @@ use crate::platform::{self, Instant};
 /// Get one from [`Monotonic::now`], the crate-level [`now`](crate::now)
 /// shortcut, an injected [`Clock`](crate::Clock), or by converting a
 /// [`std::time::Instant`] with [`From`].
+///
+/// # Readings from different clocks
+///
+/// A reading from a [`ManualClock`](crate::ManualClock) has the same type
+/// as one from the operating system clock, but the two do not measure the
+/// same thing: the manual clock moves only when it is told to. Measure a
+/// reading with the clock it came from, for example
+/// [`Clock::elapsed`](crate::Clock::elapsed). In debug builds every reading
+/// remembers its clock, and [`elapsed`](Monotonic::elapsed),
+/// [`duration_since`](Monotonic::duration_since) and the other
+/// `*_duration_since` methods, and `reading - reading`, panic when they are
+/// given readings of different clocks (a `ManualClock` and the operating
+/// system clock, or two `ManualClock`s), instead of returning a plausible
+/// but wrong duration. Release builds keep only the instant and check
+/// nothing. Comparisons (`==`, `<`) and conversions to
+/// [`std::time::Instant`] are never checked.
 ///
 /// # Arithmetic never panics
 ///
@@ -60,10 +79,72 @@ use crate::platform::{self, Instant};
 /// assert_eq!(deadline - start, Duration::from_secs(30));
 /// ```
 #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Monotonic(pub(crate) Instant);
+#[derive(Copy, Clone)]
+pub struct Monotonic(
+    pub(crate) Instant,
+    /// The clock the reading came from (debug builds only).
+    #[cfg(debug_assertions)]
+    pub(crate) Source,
+);
+
+/// Which clock a reading came from: [`Source::OS`] for the operating
+/// system clock, a distinct value for each [`ManualClock`](crate::ManualClock).
+/// Only tracked in debug builds, to catch readings of different clocks
+/// being measured against each other.
+#[cfg(debug_assertions)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub(crate) struct Source(pub(crate) u32);
+
+#[cfg(debug_assertions)]
+impl Source {
+    /// The operating system clock, and readings built from an `Instant`.
+    pub(crate) const OS: Self = Self(0);
+}
+
+#[cfg(debug_assertions)]
+const MIXED: &str = "clock-lib: a reading was measured against a reading from a \
+                     different clock (a ManualClock and the operating system clock, or two \
+                     ManualClocks); measure a reading with the clock it came from, for \
+                     example `clock.elapsed(reading)`";
+
+#[cfg(debug_assertions)]
+const NOT_OS: &str = "clock-lib: Monotonic::elapsed and clock_lib::elapsed read the \
+                      operating system clock, but this reading came from a ManualClock, so \
+                      every advance would be ignored; use `clock.elapsed(reading)`";
 
 impl Monotonic {
+    /// A reading of the operating system clock.
+    #[inline]
+    pub(crate) const fn from_os(instant: Instant) -> Self {
+        Self(
+            instant,
+            #[cfg(debug_assertions)]
+            Source::OS,
+        )
+    }
+
+    /// A reading at `instant` from the same clock as `self`.
+    #[inline]
+    #[cfg_attr(not(debug_assertions), allow(clippy::unused_self))]
+    const fn moved_to(self, instant: Instant) -> Self {
+        Self(
+            instant,
+            #[cfg(debug_assertions)]
+            self.1,
+        )
+    }
+
+    /// Debug builds: panics unless both readings came from the same clock.
+    #[inline]
+    #[track_caller]
+    #[cfg_attr(not(debug_assertions), allow(clippy::unused_self))]
+    fn same_clock(self, other: Self) {
+        #[cfg(debug_assertions)]
+        debug_assert!(self.1 == other.1, "{MIXED}");
+        #[cfg(not(debug_assertions))]
+        let _ = other;
+    }
+
     /// Captures the current monotonic time from the operating system.
     ///
     /// This always reads the OS clock. Code that receives an injected
@@ -82,7 +163,7 @@ impl Monotonic {
     #[inline]
     #[must_use]
     pub fn now() -> Self {
-        Self(Instant::now())
+        Self::from_os(Instant::now())
     }
 
     /// Returns the time elapsed between this reading and **the operating
@@ -109,7 +190,10 @@ impl Monotonic {
     /// ```
     #[inline]
     #[must_use]
+    #[track_caller]
     pub fn elapsed(self) -> Duration {
+        #[cfg(debug_assertions)]
+        debug_assert!(self.1 == Source::OS, "{NOT_OS}");
         self.0.elapsed()
     }
 
@@ -137,7 +221,9 @@ impl Monotonic {
     /// ```
     #[inline]
     #[must_use]
+    #[track_caller]
     pub fn duration_since(self, earlier: Self) -> Duration {
+        self.same_clock(earlier);
         self.0.saturating_duration_since(earlier.0)
     }
 
@@ -156,7 +242,9 @@ impl Monotonic {
     /// ```
     #[inline]
     #[must_use]
+    #[track_caller]
     pub fn checked_duration_since(self, earlier: Self) -> Option<Duration> {
+        self.same_clock(earlier);
         self.0.checked_duration_since(earlier.0)
     }
 
@@ -176,7 +264,9 @@ impl Monotonic {
     /// ```
     #[inline]
     #[must_use]
+    #[track_caller]
     pub fn saturating_duration_since(self, earlier: Self) -> Duration {
+        self.same_clock(earlier);
         self.0.saturating_duration_since(earlier.0)
     }
 
@@ -196,7 +286,7 @@ impl Monotonic {
     #[inline]
     #[must_use]
     pub fn checked_add(self, duration: Duration) -> Option<Self> {
-        self.0.checked_add(duration).map(Self)
+        self.0.checked_add(duration).map(|i| self.moved_to(i))
     }
 
     /// Returns `self - duration`, or `None` if the result is not
@@ -215,7 +305,7 @@ impl Monotonic {
     #[inline]
     #[must_use]
     pub fn checked_sub(self, duration: Duration) -> Option<Self> {
-        self.0.checked_sub(duration).map(Self)
+        self.0.checked_sub(duration).map(|i| self.moved_to(i))
     }
 
     /// Returns `self + duration`, clamped to the latest instant this
@@ -239,7 +329,7 @@ impl Monotonic {
     #[inline]
     #[must_use]
     pub fn saturating_add(self, duration: Duration) -> Self {
-        Self(platform::instant_add(self.0, duration))
+        self.moved_to(platform::instant_add(self.0, duration))
     }
 
     /// Returns `self - duration`, clamped to the earliest instant this
@@ -259,7 +349,7 @@ impl Monotonic {
     #[inline]
     #[must_use]
     pub fn saturating_sub(self, duration: Duration) -> Self {
-        Self(platform::instant_sub(self.0, duration))
+        self.moved_to(platform::instant_sub(self.0, duration))
     }
 }
 
@@ -280,7 +370,7 @@ impl Monotonic {
 impl From<Instant> for Monotonic {
     #[inline]
     fn from(instant: Instant) -> Self {
-        Self(instant)
+        Self::from_os(instant)
     }
 }
 
@@ -302,6 +392,45 @@ impl From<Monotonic> for Instant {
     #[inline]
     fn from(reading: Monotonic) -> Self {
         reading.0
+    }
+}
+
+/// Shows the instant only, as `Monotonic(Instant { .. })`.
+impl fmt::Debug for Monotonic {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("Monotonic").field(&self.0).finish()
+    }
+}
+
+/// Compares the instants only; the clock a reading came from is not part
+/// of its value.
+impl PartialEq for Monotonic {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl Eq for Monotonic {}
+
+impl PartialOrd for Monotonic {
+    #[inline]
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Monotonic {
+    #[inline]
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.0.cmp(&other.0)
+    }
+}
+
+impl Hash for Monotonic {
+    #[inline]
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.0.hash(state);
     }
 }
 

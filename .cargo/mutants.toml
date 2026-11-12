@@ -5,8 +5,8 @@
 # as "unviable" instead of being tested.
 cap_lints = true
 
-# The loom models only compile under `--cfg loom`; mutating them can never be
-# observed by the normal test run.
+# The loom models only compile under `--cfg clock_lib_loom`; mutating them
+# can never be observed by the normal test run.
 exclude_re = ["loom_tests"]
 
 # Doctests are slow to build per mutant; the unit and integration tests cover

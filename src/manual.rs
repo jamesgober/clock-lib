@@ -48,7 +48,10 @@ use crate::{Monotonic, Wall};
 /// same clock: [`Clock::elapsed`] or `clock.now().duration_since(reading)`.
 /// The free function [`elapsed`](crate::elapsed) and
 /// [`Monotonic::elapsed`] read the operating system clock and would ignore
-/// every `advance`.
+/// every `advance`. Debug builds panic when a reading of this clock is
+/// measured against the operating system clock or another `ManualClock`
+/// (see [`Monotonic`]); release builds return the wrong duration
+/// silently.
 ///
 /// # Sharing
 ///
@@ -102,6 +105,20 @@ pub struct ManualClock {
     /// When non-zero, every reading advances the offset by this many
     /// nanoseconds after it is taken.
     auto_advance_nanos: AtomicU64,
+    /// Tags this clock's readings, so debug builds catch them being mixed
+    /// with another clock's.
+    #[cfg(debug_assertions)]
+    source: crate::monotonic::Source,
+}
+
+/// A fresh, nonzero tag for a new `ManualClock` (zero is the operating
+/// system clock). A plain `core` atomic, outside the loom model.
+#[cfg(debug_assertions)]
+fn next_source() -> crate::monotonic::Source {
+    use core::sync::atomic::{AtomicU32, Ordering as AtomicOrdering};
+    static NEXT: AtomicU32 = AtomicU32::new(1);
+    let id = NEXT.fetch_add(1, AtomicOrdering::Relaxed);
+    crate::monotonic::Source(if id == 0 { 1 } else { id })
 }
 
 impl ManualClock {
@@ -154,6 +171,8 @@ impl ManualClock {
             offset_nanos: AtomicU64::new(0),
             wall_skew_nanos: AtomicI64::new(0),
             auto_advance_nanos: AtomicU64::new(0),
+            #[cfg(debug_assertions)]
+            source: next_source(),
         }
     }
 
@@ -178,7 +197,11 @@ impl ManualClock {
     #[must_use]
     pub fn now(&self) -> Monotonic {
         let offset = Duration::from_nanos(self.reading_offset());
-        Monotonic(platform::instant_add(self.monotonic_anchor, offset))
+        Monotonic(
+            platform::instant_add(self.monotonic_anchor, offset),
+            #[cfg(debug_assertions)]
+            self.source,
+        )
     }
 
     /// Returns the current wall-clock reading: the wall anchor plus the
@@ -291,6 +314,11 @@ impl ManualClock {
     /// Moves the wall reading forward by `by` without moving the monotonic
     /// reading, as an NTP step or a manual clock change would.
     ///
+    /// Call it from the test driver. A [`wall`](Self::wall) reading on
+    /// another thread at the same moment reads the offset and the wall
+    /// adjustment separately, so it can combine the old offset with the
+    /// new adjustment.
+    ///
     /// # Examples
     ///
     /// ```
@@ -315,6 +343,9 @@ impl ManualClock {
     ///
     /// The wall reading may move before the Unix epoch; the signed
     /// accessors such as [`Wall::unix_seconds_signed`] report it.
+    ///
+    /// Call it from the test driver, as for
+    /// [`step_wall_forward`](Self::step_wall_forward).
     ///
     /// # Examples
     ///
@@ -489,6 +520,8 @@ impl Default for ManualClock {
     }
 }
 
+// The debug-build clock tag is bookkeeping, not part of the clock's state.
+#[allow(clippy::missing_fields_in_debug)]
 impl fmt::Debug for ManualClock {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ManualClock")
@@ -552,7 +585,7 @@ fn saturating_i128(v: u128) -> i128 {
     i128::try_from(v).unwrap_or(i128::MAX)
 }
 
-#[cfg(all(test, not(loom)))]
+#[cfg(all(test, not(clock_lib_loom)))]
 mod tests {
     use super::*;
     use crate::platform::UNIX_EPOCH;
@@ -638,8 +671,8 @@ mod tests {
 }
 
 /// Model-checked concurrency tests. Run with
-/// `RUSTFLAGS="--cfg loom" cargo test --lib --release`.
-#[cfg(all(test, loom))]
+/// `RUSTFLAGS="--cfg clock_lib_loom" cargo test --lib --release loom`.
+#[cfg(all(test, clock_lib_loom))]
 mod loom_tests {
     use super::*;
     use loom::sync::Arc;

@@ -9,13 +9,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
+---
+
+## [1.2.0] - 2026-11-12
+
+Catches readings of different clocks being mixed, and builds under a
+downstream `--cfg loom`. No public item is added, removed, or changed.
+MSRV stays 1.85; no new dependency. (The 1.1.1 prepared for the loom fix
+was never published; its fix is in this release.)
 
 ### Changed
 
+- **Debug builds catch readings of different clocks being mixed.** A
+  `ManualClock` reading and an operating system reading are both
+  `Monotonic`, so `stamp.elapsed()`, `clock_lib::elapsed(stamp)`,
+  `Monotonic::now() - stamp`, or `Deadline::at(SystemClock, manual.now())`
+  on a manual reading compiled and silently measured the wrong clock: an
+  `advance` was ignored, or a deadline waited real time. In debug builds
+  every reading now remembers which clock it came from, and
+  `elapsed`, `duration_since`, `checked_duration_since`,
+  `saturating_duration_since`, and `reading - reading` panic, naming the
+  mistake, when given readings of different clocks (a `ManualClock` and
+  the OS clock, or two `ManualClock`s). Same-clock use, comparisons, and
+  conversions to `Instant` are unchanged, and release builds keep a bare
+  `Instant` and check nothing. A test suite that mixed them on purpose
+  now panics in debug builds; measure with `clock.elapsed(stamp)`.
+- CI builds and tests a downstream crate under `RUSTFLAGS="--cfg loom"`,
+  with a `ManualClock` used both inside and outside a `loom::model`, so a
+  regression of the fix below fails the build.
+
 ### Fixed
 
-### Security
+- **Builds under a downstream `--cfg loom`.** 1.1.0 switched its atomics to
+  `loom` under `cfg(loom)` but declared `loom` only as a dev-dependency, so
+  any crate that model-checks its own code with
+  `RUSTFLAGS="--cfg loom"` (which applies to every crate in the build)
+  failed to compile `clock-lib` with "cannot find module or crate `loom`".
+  The model checks now use the crate-specific `clock_lib_loom` cfg, and
+  only this crate's own unit tests switch to loom atomics under it, so
+  `loom` stays a dev-dependency and no build of the library needs it.
+  Under a downstream `--cfg loom`, `clock-lib` builds exactly as it does
+  normally, and `ManualClock` keeps working outside a `loom::model`, as in
+  1.0.0.
+
+### Documentation
+
+- `Monotonic`, `ManualClock`, and the README say that readings of
+  different clocks share the type and what debug builds check.
+- `step_wall_forward` and `step_wall_back` say to call them from the test
+  driver: a `wall()` on another thread at the same moment can combine the
+  old offset with the new adjustment.
 
 ---
 
@@ -367,7 +410,8 @@ The 1.0 surface is the union of every prior 0.x addition:
 - CI for Linux/macOS/Windows on stable and MSRV.
 - Project documentation framework.
 
-[Unreleased]: https://github.com/jamesgober/clock-lib/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/jamesgober/clock-lib/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/jamesgober/clock-lib/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/jamesgober/clock-lib/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/jamesgober/clock-lib/compare/v0.5.0...v1.0.0
 [0.5.0]: https://github.com/jamesgober/clock-lib/compare/v0.4.0...v0.5.0
