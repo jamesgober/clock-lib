@@ -64,7 +64,7 @@
 
 ```toml
 [dependencies]
-clock-lib = "1.1"
+clock-lib = "1.2"
 ```
 
 ### Optional features
@@ -76,7 +76,7 @@ clock-lib = "1.1"
 
 ```toml
 [dependencies]
-clock-lib = { version = "1.1", features = ["serde"] }
+clock-lib = { version = "1.2", features = ["serde"] }
 ```
 
 With `default-features = false`, the crate compiles for `no_std` targets but exposes only the `VERSION` constant: every reading needs an operating-system clock. That keeps a dependent crate's own `no_std` build working; it does not provide a clock on bare metal.
@@ -123,7 +123,7 @@ clock.advance(Duration::from_secs(60));   // instant, no sleep
 assert!(expired(&clock, stamp, Duration::from_secs(60)));
 ```
 
-Inject [`Clock`](https://docs.rs/clock-lib/latest/clock_lib/trait.Clock.html) into anything time-driven and your test suite drops every `thread::sleep` it had. Inside code that takes a clock, measure with `clock.elapsed(stamp)`: the free `clock_lib::elapsed` always reads the OS clock.
+Inject [`Clock`](https://docs.rs/clock-lib/latest/clock_lib/trait.Clock.html) into anything time-driven and your test suite drops every `thread::sleep` it had. Inside code that takes a clock, measure with `clock.elapsed(stamp)`: the free `clock_lib::elapsed` always reads the OS clock. A `ManualClock` reading and an OS reading have the same type, so mixing them compiles; debug builds panic when one is measured against the other, and release builds would return a wrong duration.
 
 ### Reproducible Timestamps and NTP Jumps
 

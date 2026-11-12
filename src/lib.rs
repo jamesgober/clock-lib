@@ -242,6 +242,7 @@ pub fn now() -> Monotonic {
 #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
 #[inline]
 #[must_use]
+#[track_caller]
 pub fn elapsed(earlier: Monotonic) -> core::time::Duration {
     earlier.elapsed()
 }

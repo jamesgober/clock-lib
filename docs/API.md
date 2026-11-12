@@ -16,7 +16,7 @@
 </div>
 <br>
 
-> **Status:** This reference tracks the public surface of `clock-lib` **1.1.0**. Every runnable Rust example on this page is compiled and executed by `cargo test --doc` (the file is included as a doctest), so the examples cannot drift from the code. Signature summaries are marked `ignore`.
+> **Status:** This reference tracks the public surface of `clock-lib` **1.2.0**. Every runnable Rust example on this page is compiled and executed by `cargo test --doc` (the file is included as a doctest), so the examples cannot drift from the code. Signature summaries are marked `ignore`.
 
 `clock-lib` exposes two complementary readings: **monotonic** (for measuring elapsed time) and **wall-clock** (for timestamps), behind a one-line Tier-1 API. The two are distinct types and cannot be mixed: the compiler rejects any attempt to subtract a wall-clock reading from a monotonic one. A `Clock` trait lets time-driven code take an injected clock, so tests can drive time with `ManualClock` instead of sleeping.
 
@@ -65,7 +65,7 @@ Add to `Cargo.toml`:
 
 ```toml
 [dependencies]
-clock-lib = "1.1"
+clock-lib = "1.2"
 ```
 
 By default `clock-lib` has zero runtime dependencies and contains no `unsafe` code (`#![forbid(unsafe_code)]`).
@@ -79,14 +79,14 @@ By default `clock-lib` has zero runtime dependencies and contains no `unsafe` co
 
 ```toml
 [dependencies]
-clock-lib = { version = "1.1", features = ["serde"] }
+clock-lib = { version = "1.2", features = ["serde"] }
 ```
 
 **Without `std`.** With `default-features = false` the crate compiles for `no_std` targets but exposes only [`VERSION`](#version): every reading needs an operating-system clock. This lets a crate that depends on `clock-lib` behind its own `std` feature keep building for embedded targets. It does not provide a clock on bare metal.
 
 ```toml
 [dependencies]
-clock-lib = { version = "1.1", default-features = false }
+clock-lib = { version = "1.2", default-features = false }
 ```
 
 ### Platforms and Resolution

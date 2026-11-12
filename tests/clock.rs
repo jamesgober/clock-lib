@@ -48,8 +48,10 @@ fn test_clock_elapsed_on_manual_clock_honours_advance() {
 }
 
 /// Audit repro r05 (CLK-002): the free `elapsed` reads the OS clock, so it
-/// ignores a `ManualClock`'s offset. This test documents that contract;
+/// ignores a `ManualClock`'s offset. This test documents that contract in
+/// release builds; debug builds panic instead (see `tests/mixed_clocks.rs`).
 /// `Clock::elapsed` is the right call for injected clocks.
+#[cfg(not(debug_assertions))]
 #[test]
 fn test_free_elapsed_on_manual_reading_measures_real_time_not_offset() {
     let clock = ManualClock::new();
